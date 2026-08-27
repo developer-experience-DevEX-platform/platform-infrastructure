@@ -62,8 +62,8 @@ jobs:
             exit 1
           fi
 
-          echo "GITHUB_REPOSITORY_ID=$repository_id" >> "$GITHUB_ENV"
-          echo "GITHUB_OWNER_ID=$owner_id" >> "$GITHUB_ENV"
+          echo "TARGET_REPOSITORY_ID=$repository_id" >> "$GITHUB_ENV"
+          echo "TARGET_OWNER_ID=$owner_id" >> "$GITHUB_ENV"
 
       - name: Generate service identity definition
         shell: bash
@@ -83,9 +83,9 @@ jobs:
 
             service_name         = "$SERVICE_NAME"
             github_owner         = "$GITHUB_OWNER"
-            github_owner_id      = "$GITHUB_OWNER_ID"
+            github_owner_id      = "$TARGET_OWNER_ID"
             github_repository    = "$GITHUB_REPOSITORY_NAME"
-            github_repository_id = "$GITHUB_REPOSITORY_ID"
+            github_repository_id = "$TARGET_REPOSITORY_ID"
             github_branch        = "main"
 
             resource_group_name = var.resource_group_name
