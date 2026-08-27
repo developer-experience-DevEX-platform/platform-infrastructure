@@ -1,0 +1,101 @@
+name: Terraform Service Identity
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - environments/dev/services/**
+      - modules/service-ci-identity/**
+  push:
+    branches:
+      - main
+    paths:
+      - environments/dev/services/**
+      - modules/service-ci-identity/**
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out platform infrastructure
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine Terraform working directory
+        shell: bash
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            base_sha="${{ github.event.pull_request.base.sha }}"
+            head_sha="${{ github.event.pull_request.head.sha }}"
+          else
+            base_sha="${{ github.event.before }}"
+            head_sha="$GITHUB_SHA"
+          fi
+
+          mapfile -t service_directories < <(
+            git diff --name-only "$base_sha" "$head_sha" |
+              awk -F/ '$1 == "environments" && $2 == "dev" && $3 == "services" && NF >= 5 { print $1 "/" $2 "/" $3 "/" $4 }' |
+              sort -u
+          )
+
+          if (( ${#service_directories[@]} == 0 )); then
+            echo "::error::No changed service directory was found under environments/dev/services/."
+            exit 1
+          fi
+
+          if (( ${#service_directories[@]} > 1 )); then
+            echo "::error::Multi-service changes are not yet supported."
+            printf 'Changed service directory: %s\n' "${service_directories[@]}"
+            exit 1
+          fi
+
+          echo "TF_WORKING_DIR=${service_directories[0]}" >> "$GITHUB_ENV"
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.0
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Initialize Terraform
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform init
+
+      - name: Validate Terraform
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform validate
+
+      - name: Plan Terraform changes
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform plan -var-file=terraform.tfvars
+
+      - name: Apply Terraform changes
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform apply -auto-approve -var-file=terraform.tfvars
+
+      - name: Publish CI identity client ID
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        env:
+          GH_TOKEN: ${{ secrets.PLATFORM_GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          SERVICE_NAME="${TF_WORKING_DIR##*/}"
+          client_id="$(terraform output -raw client_id)"
+
+          gh variable set AZURE_CLIENT_ID_CD \
+            --repo "developer-experience-DevEX-platform/$SERVICE_NAME" \
+            --body "$client_id"

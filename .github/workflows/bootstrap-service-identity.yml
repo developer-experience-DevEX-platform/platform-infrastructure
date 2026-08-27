@@ -94,6 +94,18 @@ jobs:
           }
           EOF
 
+          cat > "$service_directory/backend.tf" <<EOF
+          terraform {
+            backend "azurerm" {
+              resource_group_name  = "Backstage-workflow"
+              storage_account_name = "devexplatformtfstate"
+              container_name       = "tfstate"
+              key                  = "dev/services/$SERVICE_NAME.tfstate"
+              use_azuread_auth     = true
+            }
+          }
+          EOF
+
           cat > "$service_directory/providers.tf" <<'EOF'
           terraform {
             required_version = ">= 1.8.0"
