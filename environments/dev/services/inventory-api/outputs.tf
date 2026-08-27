@@ -1,3 +1,4 @@
+# Outputs consumed by service CI automation.
 output "client_id" {
   description = "Client ID of the service CI managed identity."
   value       = module.service_ci_identity.client_id
