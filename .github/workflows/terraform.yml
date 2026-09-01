@@ -5,12 +5,14 @@ on:
     paths:
       - 'environments/**'
       - 'modules/**'
+      - '.github/workflows/terraform.yml'
   push:
     branches:
       - main
     paths:
       - 'environments/**'
       - 'modules/**'
+      - '.github/workflows/terraform.yml'
 
 permissions:
   contents: read
@@ -18,70 +20,85 @@ permissions:
 
 jobs:
   detect-stack:
-    name: Detect Service Stack
+    name: Detect Service Stacks
     runs-on: ubuntu-latest
     outputs:
-      working_directory: ${{ steps.detect.outputs.working_directory }}
-      environment: ${{ steps.detect.outputs.environment }}
-      service_name: ${{ steps.detect.outputs.service_name }}
-      state_key: ${{ steps.detect.outputs.state_key }}
+      matrix: ${{ steps.detect.outputs.matrix }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Detect changed service stack
+      - name: Detect affected service stacks
         id: detect
         env:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         shell: bash
         run: |
-          mapfile -t service_stacks < <(
-            git diff --name-only "$BASE_SHA" "$HEAD_SHA" |
+          mapfile -t changed_files < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+
+          if printf '%s\n' "${changed_files[@]}" |
+            grep -Eq '^(modules/|\.github/workflows/terraform\.yml$)'; then
+            mapfile -t service_stacks < <(
+              find environments -mindepth 3 -maxdepth 3 -type d \
+                -path 'environments/*/services/*' |
+                sort -u
+            )
+          else
+            mapfile -t service_stacks < <(
+              printf '%s\n' "${changed_files[@]}" |
               sed -nE 's#^(environments/[^/]+/services/[^/]+)/.*#\1#p' |
               sort -u
-          )
+            )
+          fi
 
           if [[ ${#service_stacks[@]} -eq 0 ]]; then
-            echo "::error::No changed service stack was detected under environments/<environment>/services/<service>."
+            echo "::error::No service stacks exist under environments/<environment>/services/<service>."
             exit 1
           fi
 
-          if [[ ${#service_stacks[@]} -gt 1 ]]; then
-            echo "::error::More than one service stack changed. Multi-service changes are not yet supported."
-            printf 'Detected stack: %s\n' "${service_stacks[@]}"
-            exit 1
-          fi
+          matrix='[]'
+          for working_directory in "${service_stacks[@]}"; do
+            environment_name=$(cut -d/ -f2 <<< "$working_directory")
+            service_name=$(cut -d/ -f4 <<< "$working_directory")
+            state_key="$environment_name/services/$service_name/terraform.tfstate"
+            matrix=$(jq -c \
+              --arg working_directory "$working_directory" \
+              --arg environment "$environment_name" \
+              --arg service_name "$service_name" \
+              --arg state_key "$state_key" \
+              '. + [{
+                working_directory: $working_directory,
+                environment: $environment,
+                service_name: $service_name,
+                state_key: $state_key
+              }]' <<< "$matrix")
+          done
 
-          working_directory="${service_stacks[0]}"
-          environment_name=$(cut -d/ -f2 <<< "$working_directory")
-          service_name=$(cut -d/ -f4 <<< "$working_directory")
-          state_key="$environment_name/services/$service_name/terraform.tfstate"
-
-          {
-            echo "working_directory=$working_directory"
-            echo "environment=$environment_name"
-            echo "service_name=$service_name"
-            echo "state_key=$state_key"
-          } >> "$GITHUB_OUTPUT"
+          echo "Detected service stack matrix: $matrix"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
   terraform-plan:
-    name: Terraform Plan
+    name: Terraform Plan (${{ matrix.stack.environment }}/${{ matrix.stack.service_name }})
     if: github.event_name == 'pull_request'
     needs: detect-stack
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: ${{ fromJSON(needs.detect-stack.outputs.matrix) }}
     env:
       TF_IN_AUTOMATION: true
       TF_INPUT: false
       TF_VAR_aws_region: ${{ vars.AWS_REGION }}
       TF_VAR_github_owner: ${{ github.repository_owner }}
-      TF_VAR_github_repository: ${{ needs.detect-stack.outputs.service_name }}
+      TF_VAR_github_repository: ${{ matrix.stack.service_name }}
       TF_VAR_github_oidc_provider_arn: ${{ vars.AWS_GITHUB_OIDC_PROVIDER_ARN }}
       GITHUB_TOKEN: ${{ secrets.PLATFORM_GITHUB_TOKEN }}
       TERRAFORM_STATE_BUCKET: ${{ vars.TERRAFORM_STATE_BUCKET }}
-      TERRAFORM_STATE_KEY: ${{ needs.detect-stack.outputs.state_key }}
+      TERRAFORM_STATE_KEY: ${{ matrix.stack.state_key }}
       AWS_REGION: ${{ vars.AWS_REGION }}
     steps:
       - name: Check out repository
@@ -104,7 +121,7 @@ jobs:
         run: terraform fmt -check -recursive
 
       - name: Initialize Terraform
-        working-directory: ${{ needs.detect-stack.outputs.working_directory }}
+        working-directory: ${{ matrix.stack.working_directory }}
         run: |
           terraform init \
             -backend-config="bucket=$TERRAFORM_STATE_BUCKET" \
@@ -113,14 +130,14 @@ jobs:
             -backend-config="use_lockfile=true"
 
       - name: Validate Terraform
-        working-directory: ${{ needs.detect-stack.outputs.working_directory }}
+        working-directory: ${{ matrix.stack.working_directory }}
         run: terraform validate
 
       - name: Discover GitHub repository identity
         env:
           GH_TOKEN: ${{ secrets.PLATFORM_GITHUB_TOKEN }}
           GITHUB_OWNER: ${{ github.repository_owner }}
-          SERVICE_NAME: ${{ needs.detect-stack.outputs.service_name }}
+          SERVICE_NAME: ${{ matrix.stack.service_name }}
         shell: bash
         run: |
           repo_json=$(gh api "repos/$GITHUB_OWNER/$SERVICE_NAME")
@@ -146,12 +163,12 @@ jobs:
 
       - name: Plan Terraform changes
         id: plan
-        working-directory: ${{ needs.detect-stack.outputs.working_directory }}
+        working-directory: ${{ matrix.stack.working_directory }}
         run: terraform plan -out=tfplan
 
       - name: Render Terraform plan
         if: always()
-        working-directory: ${{ needs.detect-stack.outputs.working_directory }}
+        working-directory: ${{ matrix.stack.working_directory }}
         shell: bash
         run: |
           if [[ -f tfplan ]]; then
@@ -164,17 +181,17 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: terraform-plan-${{ needs.detect-stack.outputs.service_name }}
-          path: ${{ needs.detect-stack.outputs.working_directory }}/tfplan.txt
+          name: terraform-plan-${{ matrix.stack.environment }}-${{ matrix.stack.service_name }}
+          path: ${{ matrix.stack.working_directory }}/tfplan.txt
           retention-days: 30
 
       - name: Write plan summary
         if: always()
         env:
-          ENVIRONMENT_NAME: ${{ needs.detect-stack.outputs.environment }}
-          SERVICE_NAME: ${{ needs.detect-stack.outputs.service_name }}
-          WORKING_DIRECTORY: ${{ needs.detect-stack.outputs.working_directory }}
-          STATE_KEY: ${{ needs.detect-stack.outputs.state_key }}
+          ENVIRONMENT_NAME: ${{ matrix.stack.environment }}
+          SERVICE_NAME: ${{ matrix.stack.service_name }}
+          WORKING_DIRECTORY: ${{ matrix.stack.working_directory }}
+          STATE_KEY: ${{ matrix.stack.state_key }}
           PLAN_RESULT: ${{ steps.plan.outcome }}
         shell: bash
         run: |
@@ -189,20 +206,24 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   terraform-apply:
-    name: Terraform Apply
+    name: Terraform Apply (${{ matrix.stack.environment }}/${{ matrix.stack.service_name }})
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: detect-stack
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: ${{ fromJSON(needs.detect-stack.outputs.matrix) }}
     env:
       TF_IN_AUTOMATION: true
       TF_INPUT: false
       TF_VAR_aws_region: ${{ vars.AWS_REGION }}
       TF_VAR_github_owner: ${{ github.repository_owner }}
-      TF_VAR_github_repository: ${{ needs.detect-stack.outputs.service_name }}
+      TF_VAR_github_repository: ${{ matrix.stack.service_name }}
       TF_VAR_github_oidc_provider_arn: ${{ vars.AWS_GITHUB_OIDC_PROVIDER_ARN }}
       GITHUB_TOKEN: ${{ secrets.PLATFORM_GITHUB_TOKEN }}
       TERRAFORM_STATE_BUCKET: ${{ vars.TERRAFORM_STATE_BUCKET }}
-      TERRAFORM_STATE_KEY: ${{ needs.detect-stack.outputs.state_key }}
+      TERRAFORM_STATE_KEY: ${{ matrix.stack.state_key }}
       AWS_REGION: ${{ vars.AWS_REGION }}
     steps:
       - name: Check out repository
@@ -225,7 +246,7 @@ jobs:
         run: terraform fmt -check -recursive
 
       - name: Initialize Terraform
-        working-directory: ${{ needs.detect-stack.outputs.working_directory }}
+        working-directory: ${{ matrix.stack.working_directory }}
         run: |
           terraform init \
             -backend-config="bucket=$TERRAFORM_STATE_BUCKET" \
@@ -234,14 +255,14 @@ jobs:
             -backend-config="use_lockfile=true"
 
       - name: Validate Terraform
-        working-directory: ${{ needs.detect-stack.outputs.working_directory }}
+        working-directory: ${{ matrix.stack.working_directory }}
         run: terraform validate
 
       - name: Discover GitHub repository identity
         env:
           GH_TOKEN: ${{ secrets.PLATFORM_GITHUB_TOKEN }}
           GITHUB_OWNER: ${{ github.repository_owner }}
-          SERVICE_NAME: ${{ needs.detect-stack.outputs.service_name }}
+          SERVICE_NAME: ${{ matrix.stack.service_name }}
         shell: bash
         run: |
           repo_json=$(gh api "repos/$GITHUB_OWNER/$SERVICE_NAME")
@@ -267,19 +288,19 @@ jobs:
 
       - name: Plan Terraform changes
         run: terraform plan -out=tfplan
-        working-directory: ${{ needs.detect-stack.outputs.working_directory }}
+        working-directory: ${{ matrix.stack.working_directory }}
 
       - name: Apply Terraform changes
         id: apply
-        working-directory: ${{ needs.detect-stack.outputs.working_directory }}
+        working-directory: ${{ matrix.stack.working_directory }}
         run: terraform apply -auto-approve tfplan
 
       - name: Write apply summary
         if: always()
         env:
-          ENVIRONMENT_NAME: ${{ needs.detect-stack.outputs.environment }}
-          SERVICE_NAME: ${{ needs.detect-stack.outputs.service_name }}
-          STATE_KEY: ${{ needs.detect-stack.outputs.state_key }}
+          ENVIRONMENT_NAME: ${{ matrix.stack.environment }}
+          SERVICE_NAME: ${{ matrix.stack.service_name }}
+          STATE_KEY: ${{ matrix.stack.state_key }}
           APPLY_RESULT: ${{ steps.apply.outcome }}
         shell: bash
         run: |
