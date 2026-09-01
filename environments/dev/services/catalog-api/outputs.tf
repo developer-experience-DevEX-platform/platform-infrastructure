@@ -1,14 +1,14 @@
-output "client_id" {
-  description = "Client ID of the service CI managed identity."
-  value       = module.service_ci_identity.client_id
+output "ecr_repository_name" {
+  description = "ECR repository name for the service."
+  value       = module.container_release.ecr_repository_name
 }
 
-output "principal_id" {
-  description = "Principal ID of the service CI managed identity."
-  value       = module.service_ci_identity.principal_id
+output "ecr_repository_url" {
+  description = "Full ECR repository URL for the service."
+  value       = module.container_release.ecr_repository_url
 }
 
-output "identity_id" {
-  description = "Azure resource ID of the service CI managed identity."
-  value       = module.service_ci_identity.identity_id
+output "release_role_arn" {
+  description = "ARN of the service GitHub Actions release role."
+  value       = module.container_release.release_role_arn
 }

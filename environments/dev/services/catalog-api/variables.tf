@@ -1,14 +1,30 @@
-variable "resource_group_name" {
-  description = "Name of the existing resource group for the service CI identity."
+variable "aws_region" {
+  description = "AWS region for the service container-release infrastructure."
   type        = string
 }
 
-variable "location" {
-  description = "Azure region in which to create the service CI identity."
+variable "github_owner" {
+  description = "GitHub organization that owns the service repository."
   type        = string
 }
 
-variable "acr_id" {
-  description = "Resource ID of the existing Azure Container Registry."
+variable "github_repository" {
+  description = "GitHub repository receiving the platform-managed release variables."
   type        = string
+}
+
+variable "github_oidc_provider_arn" {
+  description = "ARN of the existing account-level GitHub Actions OIDC provider."
+  type        = string
+}
+
+variable "service_name" {
+  description = "Platform service name."
+  type        = string
+  default     = "catalog-api"
+
+  validation {
+    condition     = can(regex("^[a-z0-9]+(?:-[a-z0-9]+)*$", var.service_name))
+    error_message = "service_name must use lowercase kebab-case, for example catalog-api."
+  }
 }
