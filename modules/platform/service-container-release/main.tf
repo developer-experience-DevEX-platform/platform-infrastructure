@@ -68,6 +68,8 @@ data "aws_iam_policy_document" "release_ecr" {
       "ecr:InitiateLayerUpload",
       "ecr:UploadLayerPart",
       "ecr:CompleteLayerUpload",
+      "ecr:DescribeImages",
+      "ecr:DescribeRepositories",
       "ecr:PutImage",
     ]
     resources = [aws_ecr_repository.service.arn]
