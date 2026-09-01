@@ -14,7 +14,9 @@ module "container_release" {
 
   service_name             = "catalog-api"
   github_owner             = "developer-experience-DevEX-platform"
+  github_owner_id          = var.github_owner_id
   github_repository        = "catalog-api"
+  github_repository_id     = var.github_repository_id
   github_oidc_provider_arn = var.github_oidc_provider_arn
   aws_region               = "eu-west-2"
 }
@@ -58,12 +60,12 @@ The `latest` tag is not used or recommended.
 Each service will receive an IAM role conceptually named `<service_name>-github-release`. The role will trust the existing account-level GitHub Actions OIDC provider with:
 
 - Audience: `sts.amazonaws.com`
-- Subject: `repo:<github_owner>/<github_repository>:ref:refs/heads/<github_branch>`
+- Subject: `repo:<github_owner>@<github_owner_id>/<github_repository>@<github_repository_id>:ref:refs/heads/<github_branch>`
 
 For example:
 
 ```text
-repo:my-company/catalog-api:ref:refs/heads/main
+repo:my-company@123456789/catalog-api@987654321:ref:refs/heads/main
 ```
 
 This trust policy limits role assumption to the configured repository and branch. The module will not create a separate OIDC provider for each service.
@@ -71,7 +73,7 @@ This trust policy limits role assumption to the configured repository and branch
 The trust boundary is:
 
 ```text
-<github_owner>/<github_repository> from refs/heads/<github_branch>
+<github_owner>@<github_owner_id>/<github_repository>@<github_repository_id> from refs/heads/<github_branch>
         ↓
 GitHub OIDC
         ↓
@@ -79,6 +81,8 @@ service-specific release role
 ```
 
 For the normal platform configuration, only the service repository's `main` branch may assume its release role. Pull requests, other branches, other repositories, and wildcard subjects are not trusted.
+
+GitHub repositories using immutable OIDC subjects include both the owner ID and repository ID. The platform Terraform workflow discovers these numeric identifiers automatically through the GitHub API. Application developers never provide or manage owner IDs, repository IDs, OIDC subjects, or IAM role trust configuration.
 
 ### Least-privilege ECR policy
 
@@ -188,7 +192,9 @@ In short, the developer owns application code and the Dockerfile. The platform o
 |---|---|---:|---|---|
 | `service_name` | `string` | Yes | — | Lowercase kebab-case platform service name. |
 | `github_owner` | `string` | Yes | — | Organization that owns the repository. |
+| `github_owner_id` | `string` | Yes | — | Immutable numeric organization ID discovered by platform automation. |
 | `github_repository` | `string` | Yes | — | Repository permitted to assume the release role. |
+| `github_repository_id` | `string` | Yes | — | Immutable numeric repository ID discovered by platform automation. |
 | `github_branch` | `string` | No | `main` | Branch permitted to release containers. |
 | `github_oidc_provider_arn` | `string` | Yes | — | Existing account-level GitHub OIDC provider ARN. |
 | `aws_region` | `string` | Yes | — | Region containing the ECR repository. |

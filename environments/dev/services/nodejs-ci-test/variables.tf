@@ -9,10 +9,20 @@ variable "github_owner" {
   default     = "developer-experience-DevEX-platform"
 }
 
+variable "github_owner_id" {
+  description = "Immutable numeric ID of the GitHub organization."
+  type        = string
+}
+
 variable "github_repository" {
   description = "GitHub repository receiving the platform-managed release variables."
   type        = string
   default     = "nodejs-ci-test"
+}
+
+variable "github_repository_id" {
+  description = "Immutable numeric ID of the GitHub service repository."
+  type        = string
 }
 
 variable "github_oidc_provider_arn" {

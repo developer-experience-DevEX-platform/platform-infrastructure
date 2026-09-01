@@ -13,9 +13,29 @@ variable "github_owner" {
   type        = string
 }
 
+variable "github_owner_id" {
+  description = "Immutable numeric GitHub owner/organization ID."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[0-9]+$", var.github_owner_id))
+    error_message = "github_owner_id must contain only digits."
+  }
+}
+
 variable "github_repository" {
   description = "GitHub repository allowed to assume the release role."
   type        = string
+}
+
+variable "github_repository_id" {
+  description = "Immutable numeric GitHub repository ID."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[0-9]+$", var.github_repository_id))
+    error_message = "github_repository_id must contain only digits."
+  }
 }
 
 variable "github_branch" {
