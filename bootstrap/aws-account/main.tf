@@ -172,6 +172,7 @@ data "aws_iam_policy_document" "terraform_platform" {
       "iam:GetRole",
       "iam:GetRolePolicy",
       "iam:ListAttachedRolePolicies",
+      "iam:ListInstanceProfilesForRole",
       "iam:ListRolePolicies",
       "iam:TagRole",
       "iam:UntagRole",
@@ -384,6 +385,7 @@ data "aws_iam_policy_document" "terraform_plan" {
       "iam:GetRole",
       "iam:GetRolePolicy",
       "iam:ListAttachedRolePolicies",
+      "iam:ListInstanceProfilesForRole",
       "iam:ListRolePolicies",
     ]
 
