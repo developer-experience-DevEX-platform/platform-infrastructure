@@ -124,6 +124,106 @@ resource "aws_iam_role" "terraform_plan" {
 
 data "aws_iam_policy_document" "terraform_platform" {
   statement {
+    sid = "ReadEKSInfrastructure"
+
+    actions = [
+      "eks:Describe*",
+      "eks:List*",
+    ]
+
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "ManageEKSInfrastructure"
+
+    actions = [
+      "eks:AssociateAccessPolicy",
+      "eks:CreateAccessEntry",
+      "eks:CreateAddon",
+      "eks:CreateCluster",
+      "eks:CreateNodegroup",
+      "eks:DeleteAccessEntry",
+      "eks:DeleteAddon",
+      "eks:DeleteCluster",
+      "eks:DeleteNodegroup",
+      "eks:DisassociateAccessPolicy",
+      "eks:TagResource",
+      "eks:UntagResource",
+      "eks:UpdateAccessEntry",
+      "eks:UpdateAddon",
+      "eks:UpdateClusterConfig",
+      "eks:UpdateClusterVersion",
+      "eks:UpdateNodegroupConfig",
+      "eks:UpdateNodegroupVersion",
+    ]
+
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "ManageEKSRoles"
+
+    actions = [
+      "iam:AttachRolePolicy",
+      "iam:CreateRole",
+      "iam:DeleteRole",
+      "iam:DetachRolePolicy",
+      "iam:GetRole",
+      "iam:GetRolePolicy",
+      "iam:ListAttachedRolePolicies",
+      "iam:ListRolePolicies",
+      "iam:TagRole",
+      "iam:UntagRole",
+      "iam:UpdateAssumeRolePolicy",
+    ]
+
+    resources = [
+      "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/devex-*-eks-*",
+    ]
+  }
+
+  statement {
+    sid = "PassEKSRoles"
+
+    actions = [
+      "iam:PassRole",
+    ]
+
+    resources = [
+      "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/devex-*-eks-*",
+    ]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["eks.amazonaws.com"]
+    }
+  }
+
+  statement {
+    sid = "CreateEKSServiceLinkedRoles"
+
+    actions = [
+      "iam:CreateServiceLinkedRole",
+    ]
+
+    resources = [
+      "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/eks.amazonaws.com/AWSServiceRoleForAmazonEKS",
+      "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/eks-nodegroup.amazonaws.com/AWSServiceRoleForAmazonEKSNodegroup",
+    ]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:AWSServiceName"
+      values = [
+        "eks.amazonaws.com",
+        "eks-nodegroup.amazonaws.com",
+      ]
+    }
+  }
+
+  statement {
     sid = "ReadNetworkInfrastructure"
 
     actions = [
@@ -263,6 +363,32 @@ resource "aws_iam_role_policy" "terraform_platform" {
 }
 
 data "aws_iam_policy_document" "terraform_plan" {
+  statement {
+    sid = "ReadEKSInfrastructure"
+
+    actions = [
+      "eks:Describe*",
+      "eks:List*",
+    ]
+
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "ReadEKSRoles"
+
+    actions = [
+      "iam:GetRole",
+      "iam:GetRolePolicy",
+      "iam:ListAttachedRolePolicies",
+      "iam:ListRolePolicies",
+    ]
+
+    resources = [
+      "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/devex-*-eks-*",
+    ]
+  }
+
   statement {
     sid = "ReadNetworkInfrastructure"
 
