@@ -125,6 +125,7 @@ jobs:
       TF_IN_AUTOMATION: true
       TF_INPUT: false
       TF_VAR_aws_region: ${{ vars.AWS_REGION }}
+      TF_VAR_terraform_state_bucket: ${{ vars.TERRAFORM_STATE_BUCKET }}
       GITHUB_TOKEN: ${{ secrets.PLATFORM_GITHUB_TOKEN }}
       TERRAFORM_STATE_BUCKET: ${{ vars.TERRAFORM_STATE_BUCKET }}
       TERRAFORM_STATE_KEY: ${{ matrix.stack.state_key }}
@@ -254,6 +255,7 @@ jobs:
       TF_IN_AUTOMATION: true
       TF_INPUT: false
       TF_VAR_aws_region: ${{ vars.AWS_REGION }}
+      TF_VAR_terraform_state_bucket: ${{ vars.TERRAFORM_STATE_BUCKET }}
       GITHUB_TOKEN: ${{ secrets.PLATFORM_GITHUB_TOKEN }}
       TERRAFORM_STATE_BUCKET: ${{ vars.TERRAFORM_STATE_BUCKET }}
       TERRAFORM_STATE_KEY: ${{ matrix.stack.state_key }}
