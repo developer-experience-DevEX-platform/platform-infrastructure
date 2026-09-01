@@ -1,5 +1,5 @@
 module "container_release" {
-  source = "../../../../modules/platform/service-container-release"
+  source = "../../modules/platform/service-container-release"
 
   service_name             = var.service_name
   github_owner             = var.github_owner
@@ -10,6 +10,6 @@ module "container_release" {
   aws_region               = var.aws_region
 
   tags = {
-    Environment = "dev"
+    Scope = "shared"
   }
 }
