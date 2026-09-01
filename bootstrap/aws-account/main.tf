@@ -124,6 +124,49 @@ resource "aws_iam_role" "terraform_plan" {
 
 data "aws_iam_policy_document" "terraform_platform" {
   statement {
+    sid = "ReadNetworkInfrastructure"
+
+    actions = [
+      "ec2:Describe*",
+    ]
+
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "ManageNetworkInfrastructure"
+
+    actions = [
+      "ec2:AllocateAddress",
+      "ec2:AssociateRouteTable",
+      "ec2:AttachInternetGateway",
+      "ec2:CreateInternetGateway",
+      "ec2:CreateNatGateway",
+      "ec2:CreateRoute",
+      "ec2:CreateRouteTable",
+      "ec2:CreateSubnet",
+      "ec2:CreateTags",
+      "ec2:CreateVpc",
+      "ec2:DeleteInternetGateway",
+      "ec2:DeleteNatGateway",
+      "ec2:DeleteRoute",
+      "ec2:DeleteRouteTable",
+      "ec2:DeleteSubnet",
+      "ec2:DeleteTags",
+      "ec2:DeleteVpc",
+      "ec2:DetachInternetGateway",
+      "ec2:DisassociateRouteTable",
+      "ec2:ModifySubnetAttribute",
+      "ec2:ModifyVpcAttribute",
+      "ec2:ReleaseAddress",
+      "ec2:ReplaceRoute",
+      "ec2:ReplaceRouteTableAssociation",
+    ]
+
+    resources = ["*"]
+  }
+
+  statement {
     sid = "ManageServiceECRRepositories"
     actions = [
       "ecr:CreateRepository",
@@ -156,6 +199,8 @@ data "aws_iam_policy_document" "terraform_platform" {
       "iam:DeleteRolePolicy",
       "iam:GetRole",
       "iam:GetRolePolicy",
+      "iam:ListAttachedRolePolicies",
+      "iam:ListInstanceProfilesForRole",
       "iam:ListRolePolicies",
       "iam:PutRolePolicy",
       "iam:TagRole",
@@ -218,6 +263,16 @@ resource "aws_iam_role_policy" "terraform_platform" {
 }
 
 data "aws_iam_policy_document" "terraform_plan" {
+  statement {
+    sid = "ReadNetworkInfrastructure"
+
+    actions = [
+      "ec2:Describe*",
+    ]
+
+    resources = ["*"]
+  }
+
   statement {
     sid = "ReadECRInfrastructure"
     actions = [
