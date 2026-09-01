@@ -3,6 +3,7 @@ name: Terraform
 on:
   pull_request:
     paths:
+      - 'services/**'
       - 'environments/**'
       - 'modules/**'
       - '.github/workflows/terraform.yml'
@@ -10,6 +11,7 @@ on:
     branches:
       - main
     paths:
+      - 'services/**'
       - 'environments/**'
       - 'modules/**'
       - '.github/workflows/terraform.yml'
@@ -37,45 +39,72 @@ jobs:
           HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         shell: bash
         run: |
-          mapfile -t changed_files < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          mapfile -t changed_files < <(
+            git diff --no-renames --diff-filter=ACMRTUXB --name-only "$BASE_SHA" "$HEAD_SHA"
+          )
+
+          mapfile -t unsupported_environment_paths < <(
+            printf '%s\n' "${changed_files[@]}" |
+              awk -F/ '$1 == "environments" && $2 != "staging" && $2 != "production"'
+          )
+
+          if [[ ${#unsupported_environment_paths[@]} -gt 0 ]]; then
+            echo "::error::Unsupported environment detected. Only staging and production are allowed."
+            printf 'Unsupported path: %s\n' "${unsupported_environment_paths[@]}"
+            exit 1
+          fi
 
           if printf '%s\n' "${changed_files[@]}" |
             grep -Eq '^(modules/|\.github/workflows/terraform\.yml$)'; then
             mapfile -t terraform_stacks < <(
-              find environments -mindepth 3 -maxdepth 3 -type d \
-                \( -path 'environments/*/services/*' -o -path 'environments/*/platform/*' \) |
-                sort -u
+              {
+                find services -mindepth 1 -maxdepth 1 -type d
+                find environments -mindepth 3 -maxdepth 3 -type d \
+                  \( -path 'environments/staging/platform/*' -o -path 'environments/production/platform/*' \)
+              } | sort -u
             )
           else
             mapfile -t terraform_stacks < <(
               printf '%s\n' "${changed_files[@]}" |
-              sed -nE 's#^(environments/[^/]+/(services|platform)/[^/]+)/.*#\1#p' |
+              sed -nE \
+                -e 's#^(services/[^/]+)/.*#\1#p' \
+                -e 's#^(environments/(staging|production)/platform/[^/]+)/.*#\1#p' |
               sort -u
             )
           fi
 
           if [[ ${#terraform_stacks[@]} -eq 0 ]]; then
-            echo "::error::No Terraform stacks exist under environments/<environment>/{services,platform}/<stack>."
+            echo "::error::No supported Terraform stacks were detected under services/* or environments/{staging,production}/platform/*."
             exit 1
           fi
 
           matrix='[]'
           for working_directory in "${terraform_stacks[@]}"; do
-            environment_name=$(cut -d/ -f2 <<< "$working_directory")
-            stack_type=$(cut -d/ -f3 <<< "$working_directory")
-            stack_name=$(cut -d/ -f4 <<< "$working_directory")
-            state_key="$environment_name/$stack_type/$stack_name/terraform.tfstate"
+            if [[ "$working_directory" == services/* ]]; then
+              stack_scope="shared"
+              stack_type="services"
+              stack_name=$(cut -d/ -f2 <<< "$working_directory")
+              stack_id="services/$stack_name"
+            else
+              stack_scope=$(cut -d/ -f2 <<< "$working_directory")
+              stack_type="platform"
+              stack_name=$(cut -d/ -f4 <<< "$working_directory")
+              stack_id="$stack_scope/platform/$stack_name"
+            fi
+            state_key="$stack_id/terraform.tfstate"
             matrix=$(jq -c \
               --arg working_directory "$working_directory" \
-              --arg environment "$environment_name" \
+              --arg stack_scope "$stack_scope" \
               --arg stack_type "$stack_type" \
               --arg stack_name "$stack_name" \
+              --arg stack_id "$stack_id" \
               --arg state_key "$state_key" \
               '. + [{
                 working_directory: $working_directory,
-                environment: $environment,
+                stack_scope: $stack_scope,
                 stack_type: $stack_type,
                 stack_name: $stack_name,
+                stack_id: $stack_id,
                 state_key: $state_key
               }]' <<< "$matrix")
           done
@@ -84,7 +113,7 @@ jobs:
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
   terraform-plan:
-    name: Terraform Plan (${{ matrix.stack.environment }}/${{ matrix.stack.stack_type }}/${{ matrix.stack.stack_name }})
+    name: Terraform Plan (${{ matrix.stack.stack_id }})
     if: github.event_name == 'pull_request'
     needs: detect-stack
     runs-on: ubuntu-latest
@@ -96,7 +125,6 @@ jobs:
       TF_IN_AUTOMATION: true
       TF_INPUT: false
       TF_VAR_aws_region: ${{ vars.AWS_REGION }}
-      TF_VAR_github_oidc_provider_arn: ${{ vars.AWS_GITHUB_OIDC_PROVIDER_ARN }}
       GITHUB_TOKEN: ${{ secrets.PLATFORM_GITHUB_TOKEN }}
       TERRAFORM_STATE_BUCKET: ${{ vars.TERRAFORM_STATE_BUCKET }}
       TERRAFORM_STATE_KEY: ${{ matrix.stack.state_key }}
@@ -140,6 +168,7 @@ jobs:
           GH_TOKEN: ${{ secrets.PLATFORM_GITHUB_TOKEN }}
           GITHUB_OWNER: ${{ github.repository_owner }}
           SERVICE_NAME: ${{ matrix.stack.stack_name }}
+          OIDC_PROVIDER_ARN: ${{ vars.AWS_GITHUB_OIDC_PROVIDER_ARN }}
         shell: bash
         run: |
           repo_json=$(gh api "repos/$GITHUB_OWNER/$SERVICE_NAME")
@@ -163,6 +192,7 @@ jobs:
             echo "TF_VAR_github_repository=$SERVICE_NAME"
             echo "TF_VAR_github_owner_id=$owner_id"
             echo "TF_VAR_github_repository_id=$repo_id"
+            echo "TF_VAR_github_oidc_provider_arn=$OIDC_PROVIDER_ARN"
           } >> "$GITHUB_ENV"
 
       - name: Plan Terraform changes
@@ -185,14 +215,14 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: terraform-plan-${{ matrix.stack.environment }}-${{ matrix.stack.stack_type }}-${{ matrix.stack.stack_name }}
+          name: terraform-plan-${{ matrix.stack.stack_scope }}-${{ matrix.stack.stack_type }}-${{ matrix.stack.stack_name }}
           path: ${{ matrix.stack.working_directory }}/tfplan.txt
           retention-days: 30
 
       - name: Write plan summary
         if: always()
         env:
-          ENVIRONMENT_NAME: ${{ matrix.stack.environment }}
+          STACK_SCOPE: ${{ matrix.stack.stack_scope }}
           STACK_TYPE: ${{ matrix.stack.stack_type }}
           STACK_NAME: ${{ matrix.stack.stack_name }}
           WORKING_DIRECTORY: ${{ matrix.stack.working_directory }}
@@ -203,7 +233,7 @@ jobs:
           {
             echo "# Terraform Plan"
             echo
-            echo "- Environment: $ENVIRONMENT_NAME"
+            echo "- Scope: $STACK_SCOPE"
             echo "- Stack type: $STACK_TYPE"
             echo "- Stack name: $STACK_NAME"
             echo "- Working directory: $WORKING_DIRECTORY"
@@ -212,7 +242,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   terraform-apply:
-    name: Terraform Apply (${{ matrix.stack.environment }}/${{ matrix.stack.stack_type }}/${{ matrix.stack.stack_name }})
+    name: Terraform Apply (${{ matrix.stack.stack_id }})
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: detect-stack
     runs-on: ubuntu-latest
@@ -224,7 +254,6 @@ jobs:
       TF_IN_AUTOMATION: true
       TF_INPUT: false
       TF_VAR_aws_region: ${{ vars.AWS_REGION }}
-      TF_VAR_github_oidc_provider_arn: ${{ vars.AWS_GITHUB_OIDC_PROVIDER_ARN }}
       GITHUB_TOKEN: ${{ secrets.PLATFORM_GITHUB_TOKEN }}
       TERRAFORM_STATE_BUCKET: ${{ vars.TERRAFORM_STATE_BUCKET }}
       TERRAFORM_STATE_KEY: ${{ matrix.stack.state_key }}
@@ -268,6 +297,7 @@ jobs:
           GH_TOKEN: ${{ secrets.PLATFORM_GITHUB_TOKEN }}
           GITHUB_OWNER: ${{ github.repository_owner }}
           SERVICE_NAME: ${{ matrix.stack.stack_name }}
+          OIDC_PROVIDER_ARN: ${{ vars.AWS_GITHUB_OIDC_PROVIDER_ARN }}
         shell: bash
         run: |
           repo_json=$(gh api "repos/$GITHUB_OWNER/$SERVICE_NAME")
@@ -291,6 +321,7 @@ jobs:
             echo "TF_VAR_github_repository=$SERVICE_NAME"
             echo "TF_VAR_github_owner_id=$owner_id"
             echo "TF_VAR_github_repository_id=$repo_id"
+            echo "TF_VAR_github_oidc_provider_arn=$OIDC_PROVIDER_ARN"
           } >> "$GITHUB_ENV"
 
       - name: Plan Terraform changes
@@ -305,7 +336,7 @@ jobs:
       - name: Write apply summary
         if: always()
         env:
-          ENVIRONMENT_NAME: ${{ matrix.stack.environment }}
+          STACK_SCOPE: ${{ matrix.stack.stack_scope }}
           STACK_TYPE: ${{ matrix.stack.stack_type }}
           STACK_NAME: ${{ matrix.stack.stack_name }}
           STATE_KEY: ${{ matrix.stack.state_key }}
@@ -315,7 +346,7 @@ jobs:
           {
             echo "# Terraform Apply"
             echo
-            echo "- Environment: $ENVIRONMENT_NAME"
+            echo "- Scope: $STACK_SCOPE"
             echo "- Stack type: $STACK_TYPE"
             echo "- Stack name: $STACK_NAME"
             echo "- State key: $STATE_KEY"
