@@ -64,7 +64,7 @@ One account-level provider for `https://token.actions.githubusercontent.com` is 
 The Terraform execution role trusts exactly:
 
 ```text
-repo:<github_owner>/<github_repository>:ref:refs/heads/<github_branch>
+repo:<github_owner>@<github_owner_id>/<github_repository>@<github_repository_id>:ref:refs/heads/<github_branch>
 ```
 
 The audience is `sts.amazonaws.com`. No wildcard repositories or branches are trusted.
@@ -72,7 +72,7 @@ The audience is `sts.amazonaws.com`. No wildcard repositories or branches are tr
 The `devex-terraform-plan` role separately trusts only the pull-request subject:
 
 ```text
-repo:<github_owner>/<github_repository>:pull_request
+repo:<github_owner>@<github_owner_id>/<github_repository>@<github_repository_id>:pull_request
 ```
 
 It can read ECR, IAM, OIDC, and Terraform state configuration and can manage only S3 `.tflock` objects. It cannot create, update, or delete infrastructure.

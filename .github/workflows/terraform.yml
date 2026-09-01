@@ -116,6 +116,34 @@ jobs:
         working-directory: ${{ needs.detect-stack.outputs.working_directory }}
         run: terraform validate
 
+      - name: Discover GitHub repository identity
+        env:
+          GH_TOKEN: ${{ secrets.PLATFORM_GITHUB_TOKEN }}
+          GITHUB_OWNER: ${{ github.repository_owner }}
+          SERVICE_NAME: ${{ needs.detect-stack.outputs.service_name }}
+        shell: bash
+        run: |
+          repo_json=$(gh api "repos/$GITHUB_OWNER/$SERVICE_NAME")
+          repo_id=$(jq -r '.id' <<< "$repo_json")
+          owner_id=$(jq -r '.owner.id' <<< "$repo_json")
+
+          if [[ ! "$repo_id" =~ ^[0-9]+$ ]]; then
+            echo "::error::GitHub repository ID was missing or non-numeric."
+            exit 1
+          fi
+
+          if [[ ! "$owner_id" =~ ^[0-9]+$ ]]; then
+            echo "::error::GitHub owner ID was missing or non-numeric."
+            exit 1
+          fi
+
+          echo "Discovered GitHub owner ID: $owner_id"
+          echo "Discovered GitHub repository ID: $repo_id"
+          {
+            echo "TF_VAR_github_owner_id=$owner_id"
+            echo "TF_VAR_github_repository_id=$repo_id"
+          } >> "$GITHUB_ENV"
+
       - name: Plan Terraform changes
         id: plan
         working-directory: ${{ needs.detect-stack.outputs.working_directory }}
@@ -208,6 +236,34 @@ jobs:
       - name: Validate Terraform
         working-directory: ${{ needs.detect-stack.outputs.working_directory }}
         run: terraform validate
+
+      - name: Discover GitHub repository identity
+        env:
+          GH_TOKEN: ${{ secrets.PLATFORM_GITHUB_TOKEN }}
+          GITHUB_OWNER: ${{ github.repository_owner }}
+          SERVICE_NAME: ${{ needs.detect-stack.outputs.service_name }}
+        shell: bash
+        run: |
+          repo_json=$(gh api "repos/$GITHUB_OWNER/$SERVICE_NAME")
+          repo_id=$(jq -r '.id' <<< "$repo_json")
+          owner_id=$(jq -r '.owner.id' <<< "$repo_json")
+
+          if [[ ! "$repo_id" =~ ^[0-9]+$ ]]; then
+            echo "::error::GitHub repository ID was missing or non-numeric."
+            exit 1
+          fi
+
+          if [[ ! "$owner_id" =~ ^[0-9]+$ ]]; then
+            echo "::error::GitHub owner ID was missing or non-numeric."
+            exit 1
+          fi
+
+          echo "Discovered GitHub owner ID: $owner_id"
+          echo "Discovered GitHub repository ID: $repo_id"
+          {
+            echo "TF_VAR_github_owner_id=$owner_id"
+            echo "TF_VAR_github_repository_id=$repo_id"
+          } >> "$GITHUB_ENV"
 
       - name: Plan Terraform changes
         run: terraform plan -out=tfplan
