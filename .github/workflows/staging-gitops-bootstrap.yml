@@ -71,6 +71,11 @@ jobs:
           kubectl apply --filename \
             platform-gitops/argocd/applicationsets/staging-services.yaml
 
+      - name: Apply production ApplicationSet
+        run: |
+          kubectl apply --filename \
+            platform-gitops/argocd/applicationsets/production-services.yaml
+
       - name: Verify nodejs-ci-test deployment
         run: |
           kubectl wait applications.argoproj.io/nodejs-ci-test-staging \
