@@ -52,3 +52,8 @@ output "private_subnet_ids" {
   description = "Private subnet IDs used by staging EKS."
   value       = module.eks.private_subnet_ids
 }
+
+output "platform_admin_role_arn" {
+  description = "ARN of the staging EKS platform administrator IAM role."
+  value       = aws_iam_role.platform_admin.arn
+}
