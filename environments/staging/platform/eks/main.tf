@@ -78,6 +78,24 @@ resource "aws_iam_role" "platform_admin" {
   }
 }
 
+data "aws_iam_policy_document" "platform_admin" {
+  statement {
+    sid = "DescribeStagingCluster"
+
+    actions = [
+      "eks:DescribeCluster",
+    ]
+
+    resources = [module.eks.cluster_arn]
+  }
+}
+
+resource "aws_iam_role_policy" "platform_admin" {
+  name   = "eks-cluster-discovery"
+  role   = aws_iam_role.platform_admin.id
+  policy = data.aws_iam_policy_document.platform_admin.json
+}
+
 resource "aws_eks_access_entry" "platform_admin" {
   cluster_name  = module.eks.cluster_name
   principal_arn = aws_iam_role.platform_admin.arn
