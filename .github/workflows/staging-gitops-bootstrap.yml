@@ -1,0 +1,90 @@
+name: Staging GitOps Bootstrap
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  bootstrap:
+    name: Configure staging GitOps
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out platform infrastructure
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::980829302319:role/devex-staging-eks-admin
+          aws-region: eu-west-2
+          role-session-name: devex-staging-gitops-${{ github.run_id }}
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure Kubernetes access
+        run: |
+          aws eks update-kubeconfig \
+            --name devex-staging \
+            --region eu-west-2
+
+      - name: Create Argo CD GitHub repository credentials
+        env:
+          ARGOCD_GITHUB_TOKEN: ${{ secrets.ARGOCD_GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          if [[ -z "$ARGOCD_GITHUB_TOKEN" ]]; then
+            echo "::error::ARGOCD_GITHUB_TOKEN is not configured."
+            exit 1
+          fi
+
+          kubectl create secret generic github-org-repo-creds \
+            --namespace argocd \
+            --from-literal=type=git \
+            --from-literal=url=https://github.com/developer-experience-DevEX-platform \
+            --from-literal=username=git \
+            --from-literal=password="$ARGOCD_GITHUB_TOKEN" \
+            --dry-run=client \
+            --output=yaml |
+            kubectl label --local --filename=- \
+              argocd.argoproj.io/secret-type=repo-creds \
+              --output=yaml |
+            kubectl apply --filename=-
+
+          kubectl get secret github-org-repo-creds \
+            --namespace argocd \
+            --output=name
+
+      - name: Check out platform GitOps
+        uses: actions/checkout@v4
+        with:
+          repository: developer-experience-DevEX-platform/platform-gitops
+          token: ${{ secrets.ARGOCD_GITHUB_TOKEN }}
+          path: platform-gitops
+          persist-credentials: false
+
+      - name: Apply staging ApplicationSet
+        run: |
+          kubectl apply --filename \
+            platform-gitops/argocd/applicationsets/staging-services.yaml
+
+      - name: Verify nodejs-ci-test deployment
+        run: |
+          kubectl wait applications.argoproj.io/nodejs-ci-test-staging \
+            --namespace argocd \
+            --for=jsonpath='{.status.sync.status}'=Synced \
+            --timeout=10m
+
+          kubectl wait applications.argoproj.io/nodejs-ci-test-staging \
+            --namespace argocd \
+            --for=jsonpath='{.status.health.status}'=Healthy \
+            --timeout=10m
+
+          kubectl get applications.argoproj.io/nodejs-ci-test-staging \
+            --namespace argocd
+          kubectl get pods --namespace nodejs-ci-test
+          kubectl get deployment --namespace nodejs-ci-test
+          kubectl get service --namespace nodejs-ci-test
