@@ -1,0 +1,68 @@
+name: EKS IAM Diagnostic
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  diagnose:
+    name: Diagnose EKS IAM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.TERRAFORM_APPLY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: devex-eks-iam-diagnostic-${{ github.run_id }}
+
+      - name: Confirm caller identity
+        shell: bash
+        run: |
+          caller_arn=$(aws sts get-caller-identity --query Arn --output text)
+          aws sts get-caller-identity
+
+          if [[ "$caller_arn" != *":assumed-role/devex-terraform-platform/"* ]]; then
+            echo "::error::Expected an assumed devex-terraform-platform session, got $caller_arn"
+            exit 1
+          fi
+
+      - name: Test scoped EKS node role lookup
+        shell: bash
+        run: |
+          node_role_arn=$(
+            aws iam get-role \
+              --role-name devex-staging-eks-node \
+              --query 'Role.Arn' \
+              --output text
+          )
+          echo "devex-staging-eks-node ARN: $node_role_arn"
+
+      - name: Test EKS nodegroup service-linked role lookup
+        shell: bash
+        run: |
+          set +e
+          aws iam get-role \
+            --role-name AWSServiceRoleForAmazonEKSNodegroup \
+            --output json > role.json 2> role-error.txt
+          status=$?
+          set -e
+
+          if [[ $status -eq 0 ]]; then
+            echo "Classification: SUCCESS"
+            jq '{RoleName: .Role.RoleName, Path: .Role.Path, Arn: .Role.Arn}' role.json
+          elif grep -q 'NoSuchEntity' role-error.txt; then
+            echo "Classification: NO_SUCH_ENTITY"
+            cat role-error.txt
+          elif grep -q 'AccessDenied' role-error.txt; then
+            echo "Classification: ACCESS_DENIED"
+            cat role-error.txt
+            exit 1
+          else
+            echo "::error::Unexpected AWS IAM GetRole response"
+            cat role-error.txt
+            exit 1
+          fi
