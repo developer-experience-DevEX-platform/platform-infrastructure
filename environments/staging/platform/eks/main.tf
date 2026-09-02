@@ -8,6 +8,35 @@ data "terraform_remote_state" "networking" {
   }
 }
 
+data "aws_partition" "current" {}
+
+data "aws_iam_openid_connect_provider" "github_actions" {
+  url = "https://token.actions.githubusercontent.com"
+}
+
+data "aws_iam_policy_document" "platform_admin_assume_role" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [data.aws_iam_openid_connect_provider.github_actions.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["repo:developer-experience-DevEX-platform@321499918/platform-infrastructure@1348443500:ref:refs/heads/main"]
+    }
+  }
+}
+
 module "eks" {
   source = "../../../../modules/aws/eks"
 
@@ -35,4 +64,34 @@ module "eks" {
   tags = {
     Environment = "staging"
   }
+}
+
+resource "aws_iam_role" "platform_admin" {
+  name               = "devex-staging-eks-admin"
+  assume_role_policy = data.aws_iam_policy_document.platform_admin_assume_role.json
+
+  tags = {
+    Environment = "staging"
+    ManagedBy   = "Terraform"
+    Platform    = "DevEx"
+    Purpose     = "EKSPlatformAdministration"
+  }
+}
+
+resource "aws_eks_access_entry" "platform_admin" {
+  cluster_name  = module.eks.cluster_name
+  principal_arn = aws_iam_role.platform_admin.arn
+  type          = "STANDARD"
+}
+
+resource "aws_eks_access_policy_association" "platform_admin" {
+  cluster_name  = module.eks.cluster_name
+  principal_arn = aws_iam_role.platform_admin.arn
+  policy_arn    = "arn:${data.aws_partition.current.partition}:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
+  access_scope {
+    type = "cluster"
+  }
+
+  depends_on = [aws_eks_access_entry.platform_admin]
 }
