@@ -37,6 +37,8 @@ provider "kubernetes" {
       data.terraform_remote_state.eks.outputs.cluster_name,
       "--region",
       var.aws_region,
+      "--profile",
+      "eks-admin",
     ]
   }
 }
@@ -55,6 +57,8 @@ provider "helm" {
         data.terraform_remote_state.eks.outputs.cluster_name,
         "--region",
         var.aws_region,
+        "--profile",
+        "eks-admin",
       ]
     }
   }

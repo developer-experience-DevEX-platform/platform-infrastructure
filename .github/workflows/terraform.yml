@@ -198,11 +198,29 @@ jobs:
 
       - name: Plan Terraform changes
         id: plan
+        if: matrix.stack.stack_id != 'staging/platform/argocd'
         working-directory: ${{ matrix.stack.working_directory }}
         run: terraform plan -out=tfplan
 
+      - name: Set up Helm for static validation
+        if: matrix.stack.stack_id == 'staging/platform/argocd'
+        uses: azure/setup-helm@v4.3.0
+
+      - name: Validate Argo CD Helm rendering
+        if: matrix.stack.stack_id == 'staging/platform/argocd'
+        working-directory: ${{ matrix.stack.working_directory }}
+        shell: bash
+        run: |
+          helm repo add argo https://argoproj.github.io/argo-helm
+          helm repo update argo
+          helm pull argo/argo-cd --version 10.4.0 --untar --untardir /tmp
+          helm lint /tmp/argo-cd --values values.yaml
+          helm template argocd /tmp/argo-cd \
+            --namespace argocd \
+            --values values.yaml > /tmp/argocd-rendered.yaml
+
       - name: Render Terraform plan
-        if: always()
+        if: always() && matrix.stack.stack_id != 'staging/platform/argocd'
         working-directory: ${{ matrix.stack.working_directory }}
         shell: bash
         run: |
@@ -213,7 +231,7 @@ jobs:
           fi
 
       - name: Upload Terraform plan
-        if: always()
+        if: always() && matrix.stack.stack_id != 'staging/platform/argocd'
         uses: actions/upload-artifact@v4
         with:
           name: terraform-plan-${{ matrix.stack.stack_scope }}-${{ matrix.stack.stack_type }}-${{ matrix.stack.stack_name }}
@@ -326,14 +344,68 @@ jobs:
             echo "TF_VAR_github_oidc_provider_arn=$OIDC_PROVIDER_ARN"
           } >> "$GITHUB_ENV"
 
+      - name: Configure staging EKS admin credentials
+        id: eks-admin-credentials
+        if: matrix.stack.stack_id == 'staging/platform/argocd'
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::980829302319:role/devex-staging-eks-admin
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: devex-staging-argocd-${{ github.run_id }}
+          output-env-credentials: false
+          output-credentials: true
+
+      - name: Create staging EKS admin profile
+        if: matrix.stack.stack_id == 'staging/platform/argocd'
+        env:
+          EKS_ADMIN_ACCESS_KEY_ID: ${{ steps.eks-admin-credentials.outputs.aws-access-key-id }}
+          EKS_ADMIN_SECRET_ACCESS_KEY: ${{ steps.eks-admin-credentials.outputs.aws-secret-access-key }}
+          EKS_ADMIN_SESSION_TOKEN: ${{ steps.eks-admin-credentials.outputs.aws-session-token }}
+        shell: bash
+        run: |
+          aws configure set aws_access_key_id "$EKS_ADMIN_ACCESS_KEY_ID" --profile eks-admin
+          aws configure set aws_secret_access_key "$EKS_ADMIN_SECRET_ACCESS_KEY" --profile eks-admin
+          aws configure set aws_session_token "$EKS_ADMIN_SESSION_TOKEN" --profile eks-admin
+          aws configure set region "$AWS_REGION" --profile eks-admin
+
+      - name: Adopt existing Argo CD release
+        if: matrix.stack.stack_id == 'staging/platform/argocd'
+        working-directory: ${{ matrix.stack.working_directory }}
+        shell: bash
+        run: |
+          if terraform state list | grep -Fxq 'helm_release.argocd'; then
+            echo "Argo CD is already present in Terraform state; skipping import."
+          else
+            terraform import helm_release.argocd argocd/argocd
+          fi
+
       - name: Plan Terraform changes
         run: terraform plan -out=tfplan
         working-directory: ${{ matrix.stack.working_directory }}
+
+      - name: Reject Argo CD replacement or recreation
+        if: matrix.stack.stack_id == 'staging/platform/argocd'
+        working-directory: ${{ matrix.stack.working_directory }}
+        shell: bash
+        run: |
+          terraform show -json tfplan |
+            jq -e '
+              [.resource_changes[] |
+                select(.address == "helm_release.argocd") |
+                .change.actions[]] |
+              any(. == "create" or . == "delete") |
+              not
+            '
 
       - name: Apply Terraform changes
         id: apply
         working-directory: ${{ matrix.stack.working_directory }}
         run: terraform apply -auto-approve tfplan
+
+      - name: Confirm Argo CD convergence
+        if: matrix.stack.stack_id == 'staging/platform/argocd'
+        working-directory: ${{ matrix.stack.working_directory }}
+        run: terraform plan -detailed-exitcode
 
       - name: Write apply summary
         if: always()
