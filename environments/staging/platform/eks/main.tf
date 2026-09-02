@@ -10,6 +10,8 @@ data "terraform_remote_state" "networking" {
 
 data "aws_partition" "current" {}
 
+data "aws_caller_identity" "current" {}
+
 data "aws_iam_openid_connect_provider" "github_actions" {
   url = "https://token.actions.githubusercontent.com"
 }
@@ -33,6 +35,15 @@ data "aws_iam_policy_document" "platform_admin_assume_role" {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
       values   = ["repo:developer-experience-DevEX-platform@321499918/platform-infrastructure@1348443500:ref:refs/heads/main"]
+    }
+  }
+
+  statement {
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:user/Temitope"]
     }
   }
 }
