@@ -122,26 +122,6 @@ resource "aws_iam_role" "terraform_plan" {
   }
 }
 
-data "aws_iam_policy_document" "temitope_staging_eks_admin" {
-  statement {
-    sid = "AssumeStagingEKSAdmin"
-
-    actions = [
-      "sts:AssumeRole",
-    ]
-
-    resources = [
-      "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/devex-staging-eks-admin",
-    ]
-  }
-}
-
-resource "aws_iam_user_policy" "temitope_staging_eks_admin" {
-  name   = "assume-devex-staging-eks-admin"
-  user   = "Temitope"
-  policy = data.aws_iam_policy_document.temitope_staging_eks_admin.json
-}
-
 data "aws_iam_policy_document" "terraform_platform" {
   statement {
     sid = "ReadEKSInfrastructure"
