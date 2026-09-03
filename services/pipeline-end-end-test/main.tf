@@ -9,6 +9,10 @@ module "container_release" {
   github_oidc_provider_arn = var.github_oidc_provider_arn
   aws_region               = var.aws_region
 
+  integration_test_secret_arns = [
+    "arn:aws:secretsmanager:eu-west-2:980829302319:secret:pipeline-end-end-test/integration-0nxavk",
+  ]
+
   tags = {
     Scope = "shared"
   }
