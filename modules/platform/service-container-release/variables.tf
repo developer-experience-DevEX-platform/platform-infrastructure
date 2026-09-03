@@ -44,6 +44,12 @@ variable "github_branch" {
   default     = "main"
 }
 
+variable "integration_test_secret_arns" {
+  description = "Secrets Manager secret ARNs that this service may read during PR integration tests."
+  type        = set(string)
+  default     = []
+}
+
 variable "production_environment_reviewer_team_ids" {
   description = "GitHub team IDs allowed to approve deployments to the production environment."
   type        = set(number)
