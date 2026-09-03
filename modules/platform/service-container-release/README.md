@@ -2,7 +2,7 @@
 
 This module defines the platform abstraction for giving one containerized service a secure AWS ECR release path through GitHub Actions OIDC. Backstage and platform automation supply the infrastructure details; application developers only maintain their application code and Dockerfile.
 
-The service-owned ECR repository, IAM release role, GitHub OIDC trust, repository-scoped ECR permissions, and GitHub Actions repository variables are implemented.
+The service-owned ECR repository, IAM release role, GitHub OIDC trust, repository-scoped ECR permissions, GitHub Actions repository variables, and protected production environment are implemented.
 
 ## Example
 
@@ -126,6 +126,14 @@ The module automatically populates these non-secret, platform-managed repository
 
 Application developers do not create or maintain these values. The module does not create `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_ACCOUNT_ID`, or `ECR_REGISTRY`. GitHub Actions obtains short-lived AWS credentials through OIDC, and the registry hostname is discovered during ECR login.
 
+### Production environment protection
+
+**Implemented.**
+
+The module creates the GitHub `production` environment used by the manual production-promotion workflow. At least one reviewer from the configured `production_environment_reviewer_team_ids` must approve a deployment. Self-review and administrator bypass are disabled.
+
+Deployment branch policies use a single custom pattern, `main`. Feature branches, pull-request refs, tags, and other branches cannot deploy through the production environment. Staging delivery remains automatic and does not use this approval gate.
+
 ## Provider responsibility
 
 The calling environment stack must configure both the AWS and GitHub providers. This reusable module declares provider requirements but contains no credentials or provider authentication configuration.
@@ -196,6 +204,7 @@ In short, the developer owns application code and the Dockerfile. The platform o
 | `github_repository` | `string` | Yes | — | Repository permitted to assume the release role. |
 | `github_repository_id` | `string` | Yes | — | Immutable numeric repository ID discovered by platform automation. |
 | `github_branch` | `string` | No | `main` | Branch permitted to release containers. |
+| `production_environment_reviewer_team_ids` | `set(number)` | No | `[19182366]` | GitHub teams permitted to approve the protected production environment. |
 | `github_oidc_provider_arn` | `string` | Yes | — | Existing account-level GitHub OIDC provider ARN. |
 | `aws_region` | `string` | Yes | — | Region containing the ECR repository. |
 | `ecr_repository_name` | `string` | No | `""` | Repository override; empty uses `service_name`. |

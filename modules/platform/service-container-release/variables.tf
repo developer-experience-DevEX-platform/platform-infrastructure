@@ -44,6 +44,17 @@ variable "github_branch" {
   default     = "main"
 }
 
+variable "production_environment_reviewer_team_ids" {
+  description = "GitHub team IDs allowed to approve deployments to the production environment."
+  type        = set(number)
+  default     = [19182366]
+
+  validation {
+    condition     = length(var.production_environment_reviewer_team_ids) >= 1 && length(var.production_environment_reviewer_team_ids) <= 6
+    error_message = "production_environment_reviewer_team_ids must contain between one and six GitHub team IDs."
+  }
+}
+
 variable "github_oidc_provider_arn" {
   description = "Existing account-level GitHub Actions OIDC provider ARN. The module does not create an OIDC provider per service."
   type        = string
