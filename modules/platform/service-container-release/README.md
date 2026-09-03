@@ -130,7 +130,7 @@ Application developers do not create or maintain these values. The module does n
 
 **Implemented.**
 
-The module creates the GitHub `production` environment used by the manual production-promotion workflow. At least one reviewer from the configured `production_environment_reviewer_team_ids` must approve a deployment. Self-review and administrator bypass are disabled.
+The module grants each configured reviewer team `pull` access to the service repository before creating the GitHub `production` environment used by the manual production-promotion workflow. At least one reviewer from `production_environment_reviewer_team_ids` must approve a deployment. Self-review and administrator bypass are disabled.
 
 Deployment branch policies use a single custom pattern, `main`. Feature branches, pull-request refs, tags, and other branches cannot deploy through the production environment. Staging delivery remains automatic and does not use this approval gate.
 
