@@ -130,7 +130,7 @@ Application developers do not create or maintain these values. The module does n
 
 **Implemented.**
 
-The module grants each configured reviewer team `pull` access to the service repository before creating the GitHub `production` environment used by the manual production-promotion workflow. At least one reviewer from `production_environment_reviewer_team_ids` must approve a deployment. Self-review and administrator bypass are disabled.
+The module grants each configured reviewer team `pull` access to the service repository before creating the GitHub `production` environment used by the manual production-promotion workflow. At least one reviewer from `production_environment_reviewer_team_ids` must approve a deployment. Self-review is configurable and defaults to allowed for the current single-reviewer platform lab; administrator bypass remains disabled.
 
 Deployment branch policies use a single custom pattern, `main`. Feature branches, pull-request refs, tags, and other branches cannot deploy through the production environment. Staging delivery remains automatic and does not use this approval gate.
 
@@ -205,6 +205,7 @@ In short, the developer owns application code and the Dockerfile. The platform o
 | `github_repository_id` | `string` | Yes | — | Immutable numeric repository ID discovered by platform automation. |
 | `github_branch` | `string` | No | `main` | Branch permitted to release containers. |
 | `production_environment_reviewer_team_ids` | `set(number)` | No | `[19182366]` | GitHub teams permitted to approve the protected production environment. |
+| `production_environment_prevent_self_review` | `bool` | No | `false` | Prevents a deployment requester from approving their own production deployment when enabled. |
 | `github_oidc_provider_arn` | `string` | Yes | — | Existing account-level GitHub OIDC provider ARN. |
 | `aws_region` | `string` | Yes | — | Region containing the ECR repository. |
 | `ecr_repository_name` | `string` | No | `""` | Repository override; empty uses `service_name`. |

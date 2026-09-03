@@ -113,7 +113,7 @@ resource "github_team_repository" "production_reviewer" {
 resource "github_repository_environment" "production" {
   repository          = var.github_repository
   environment         = "production"
-  prevent_self_review = true
+  prevent_self_review = var.production_environment_prevent_self_review
   can_admins_bypass   = false
 
   reviewers {
