@@ -332,6 +332,27 @@ data "aws_iam_policy_document" "terraform_platform" {
   }
 
   statement {
+    sid = "ManageServiceIntegrationTestRoles"
+    actions = [
+      "iam:CreateRole",
+      "iam:DeleteRole",
+      "iam:DeleteRolePolicy",
+      "iam:GetRole",
+      "iam:GetRolePolicy",
+      "iam:ListAttachedRolePolicies",
+      "iam:ListInstanceProfilesForRole",
+      "iam:ListRolePolicies",
+      "iam:PutRolePolicy",
+      "iam:TagRole",
+      "iam:UntagRole",
+      "iam:UpdateAssumeRolePolicy",
+    ]
+    resources = [
+      "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/*-github-integration-test",
+    ]
+  }
+
+  statement {
     sid = "ListGitHubOIDCProviders"
     actions = [
       "iam:ListOpenIDConnectProviders",
@@ -443,6 +464,20 @@ data "aws_iam_policy_document" "terraform_plan" {
     ]
     resources = [
       "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/*-github-release",
+    ]
+  }
+
+  statement {
+    sid = "ReadServiceIntegrationTestRoles"
+    actions = [
+      "iam:GetRole",
+      "iam:GetRolePolicy",
+      "iam:ListAttachedRolePolicies",
+      "iam:ListInstanceProfilesForRole",
+      "iam:ListRolePolicies",
+    ]
+    resources = [
+      "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/*-github-integration-test",
     ]
   }
 
