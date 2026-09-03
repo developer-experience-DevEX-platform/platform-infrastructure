@@ -100,6 +100,16 @@ resource "github_actions_variable" "ecr_repository" {
   value         = aws_ecr_repository.service.name
 }
 
+resource "github_team_repository" "production_reviewer" {
+  for_each = {
+    for team_id in var.production_environment_reviewer_team_ids : tostring(team_id) => team_id
+  }
+
+  team_id    = each.value
+  repository = var.github_repository
+  permission = "pull"
+}
+
 resource "github_repository_environment" "production" {
   repository          = var.github_repository
   environment         = "production"
@@ -114,6 +124,8 @@ resource "github_repository_environment" "production" {
     protected_branches     = false
     custom_branch_policies = true
   }
+
+  depends_on = [github_team_repository.production_reviewer]
 }
 
 resource "github_repository_environment_deployment_policy" "production_main" {
