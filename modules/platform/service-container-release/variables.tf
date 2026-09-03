@@ -44,8 +44,14 @@ variable "github_branch" {
   default     = "main"
 }
 
-variable "integration_test_secret_arns" {
-  description = "Secrets Manager secret ARNs that this service may read during PR integration tests."
+variable "integration_tests_enabled" {
+  description = "Whether PR integration tests may read this service's Secrets Manager namespace."
+  type        = bool
+  default     = true
+}
+
+variable "integration_test_additional_secret_arns" {
+  description = "Platform-approved Secrets Manager ARNs outside the service namespace."
   type        = set(string)
   default     = []
 }
