@@ -55,6 +55,12 @@ variable "production_environment_reviewer_team_ids" {
   }
 }
 
+variable "production_environment_prevent_self_review" {
+  description = "Whether the deployment requester is prevented from approving their own production deployment."
+  type        = bool
+  default     = false
+}
+
 variable "github_oidc_provider_arn" {
   description = "Existing account-level GitHub Actions OIDC provider ARN. The module does not create an OIDC provider per service."
   type        = string
