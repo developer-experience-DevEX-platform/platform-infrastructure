@@ -116,7 +116,7 @@ The role cannot delete the repository or images, change lifecycle or repository 
 
 ### PR integration-test secret access
 
-**Implemented as an optional capability.** When `integration_test_secret_arns` contains one or more explicitly approved AWS Secrets Manager ARNs, the module creates a separate `<service_name>-github-integration-test` IAM role. Its GitHub OIDC trust is restricted to the immutable service repository identity and the `pull_request` context, so feature-branch pushes and main/release jobs cannot assume it.
+**Implemented as an optional capability.** When `integration_test_secret_arns` contains one or more explicitly approved AWS Secrets Manager ARNs, the module creates a separate `<service_name>-github-integration-test` IAM role. Its GitHub OIDC trust is restricted to the immutable service repository identity, the `pull_request` context, and `developer-experience-DevEX-platform/ci-cd-templates/.github/workflows/nodejs-ci.yml@refs/heads/main`. The role can therefore be assumed only through the approved central reusable Node.js CI workflow; feature-branch pushes, main/release jobs, and other workflows cannot assume it.
 
 The role can perform only `secretsmanager:GetSecretValue`, scoped exactly to the supplied secret ARNs. Teams may request access only to explicitly approved Secrets Manager ARNs; wildcard secret access is not granted. When the input is empty, the integration-test role, policy, and repository variable are not created.
 
