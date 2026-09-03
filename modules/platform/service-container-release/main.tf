@@ -104,6 +104,12 @@ data "aws_iam_policy_document" "integration_test_assume_role" {
       variable = "token.actions.githubusercontent.com:sub"
       values   = ["repo:${var.github_owner}@${var.github_owner_id}/${var.github_repository}@${var.github_repository_id}:pull_request"]
     }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:job_workflow_ref"
+      values   = ["developer-experience-DevEX-platform/ci-cd-templates/.github/workflows/nodejs-ci.yml@refs/heads/main"]
+    }
   }
 }
 
