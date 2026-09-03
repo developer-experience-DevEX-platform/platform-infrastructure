@@ -114,6 +114,12 @@ only the service's ECR repository
 
 The role cannot delete the repository or images, change lifecycle or repository policies, or administer ECR.
 
+### PR integration-test secret access
+
+**Implemented as an optional capability.** When `integration_test_secret_arns` contains one or more explicitly approved AWS Secrets Manager ARNs, the module creates a separate `<service_name>-github-integration-test` IAM role. Its GitHub OIDC trust is restricted to the immutable service repository identity and the `pull_request` context, so feature-branch pushes and main/release jobs cannot assume it.
+
+The role can perform only `secretsmanager:GetSecretValue`, scoped exactly to the supplied secret ARNs. Teams may request access only to explicitly approved Secrets Manager ARNs; wildcard secret access is not granted. When the input is empty, the integration-test role, policy, and repository variable are not created.
+
 ### GitHub Actions variables
 
 **Implemented.**
@@ -123,6 +129,7 @@ The module automatically populates these non-secret, platform-managed repository
 - `AWS_REGION`
 - `AWS_RELEASE_ROLE_ARN`
 - `ECR_REPOSITORY`
+- `AWS_INTEGRATION_TEST_ROLE_ARN` when integration-test secret access is enabled
 
 Application developers do not create or maintain these values. The module does not create `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_ACCOUNT_ID`, or `ECR_REGISTRY`. GitHub Actions obtains short-lived AWS credentials through OIDC, and the registry hostname is discovered during ECR login.
 
@@ -204,6 +211,7 @@ In short, the developer owns application code and the Dockerfile. The platform o
 | `github_repository` | `string` | Yes | — | Repository permitted to assume the release role. |
 | `github_repository_id` | `string` | Yes | — | Immutable numeric repository ID discovered by platform automation. |
 | `github_branch` | `string` | No | `main` | Branch permitted to release containers. |
+| `integration_test_secret_arns` | `set(string)` | No | `[]` | Explicitly approved Secrets Manager ARNs readable by the PR-only integration-test role. |
 | `production_environment_reviewer_team_ids` | `set(number)` | No | `[19182366]` | GitHub teams permitted to approve the protected production environment. |
 | `production_environment_prevent_self_review` | `bool` | No | `false` | Prevents a deployment requester from approving their own production deployment when enabled. |
 | `github_oidc_provider_arn` | `string` | Yes | — | Existing account-level GitHub OIDC provider ARN. |

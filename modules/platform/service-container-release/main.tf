@@ -82,6 +82,57 @@ resource "aws_iam_role_policy" "release_ecr" {
   policy = data.aws_iam_policy_document.release_ecr.json
 }
 
+data "aws_iam_policy_document" "integration_test_assume_role" {
+  count = length(var.integration_test_secret_arns) > 0 ? 1 : 0
+
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [var.github_oidc_provider_arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["repo:${var.github_owner}@${var.github_owner_id}/${var.github_repository}@${var.github_repository_id}:pull_request"]
+    }
+  }
+}
+
+resource "aws_iam_role" "integration_test" {
+  count = length(var.integration_test_secret_arns) > 0 ? 1 : 0
+
+  name               = "${var.service_name}-github-integration-test"
+  assume_role_policy = data.aws_iam_policy_document.integration_test_assume_role[0].json
+  tags               = local.tags
+}
+
+data "aws_iam_policy_document" "integration_test_secrets" {
+  count = length(var.integration_test_secret_arns) > 0 ? 1 : 0
+
+  statement {
+    sid       = "ReadApprovedIntegrationTestSecrets"
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = var.integration_test_secret_arns
+  }
+}
+
+resource "aws_iam_role_policy" "integration_test_secrets" {
+  count = length(var.integration_test_secret_arns) > 0 ? 1 : 0
+
+  name   = "${var.service_name}-integration-test-secrets"
+  role   = aws_iam_role.integration_test[0].id
+  policy = data.aws_iam_policy_document.integration_test_secrets[0].json
+}
+
 resource "github_actions_variable" "aws_region" {
   repository    = var.github_repository
   variable_name = "AWS_REGION"
@@ -98,6 +149,14 @@ resource "github_actions_variable" "ecr_repository" {
   repository    = var.github_repository
   variable_name = "ECR_REPOSITORY"
   value         = aws_ecr_repository.service.name
+}
+
+resource "github_actions_variable" "aws_integration_test_role_arn" {
+  count = length(var.integration_test_secret_arns) > 0 ? 1 : 0
+
+  repository    = var.github_repository
+  variable_name = "AWS_INTEGRATION_TEST_ROLE_ARN"
+  value         = aws_iam_role.integration_test[0].arn
 }
 
 resource "github_team_repository" "production_reviewer" {
