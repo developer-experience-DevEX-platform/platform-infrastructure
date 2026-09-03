@@ -99,3 +99,25 @@ resource "github_actions_variable" "ecr_repository" {
   variable_name = "ECR_REPOSITORY"
   value         = aws_ecr_repository.service.name
 }
+
+resource "github_repository_environment" "production" {
+  repository          = var.github_repository
+  environment         = "production"
+  prevent_self_review = true
+  can_admins_bypass   = false
+
+  reviewers {
+    teams = var.production_environment_reviewer_team_ids
+  }
+
+  deployment_branch_policy {
+    protected_branches     = false
+    custom_branch_policies = true
+  }
+}
+
+resource "github_repository_environment_deployment_policy" "production_main" {
+  repository     = var.github_repository
+  environment    = github_repository_environment.production.environment
+  branch_pattern = "main"
+}
