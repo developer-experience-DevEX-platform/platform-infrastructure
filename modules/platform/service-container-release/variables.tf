@@ -44,18 +44,6 @@ variable "github_branch" {
   default     = "main"
 }
 
-variable "integration_tests_enabled" {
-  description = "Whether PR integration tests may read this service's Secrets Manager namespace."
-  type        = bool
-  default     = true
-}
-
-variable "integration_test_additional_secret_arns" {
-  description = "Platform-approved Secrets Manager ARNs outside the service namespace."
-  type        = set(string)
-  default     = []
-}
-
 variable "production_environment_reviewer_team_ids" {
   description = "GitHub team IDs allowed to approve deployments to the production environment."
   type        = set(number)
