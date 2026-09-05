@@ -116,17 +116,29 @@ The role cannot delete the repository or images, change lifecycle or repository 
 
 ### PR integration-test secret access
 
-**Implemented.** With `integration_tests_enabled = true` (the default), the module creates a separate `<service_name>-github-integration-test` IAM role. Its GitHub OIDC trust is restricted to the immutable service repository identity, the `pull_request` context, and `developer-experience-DevEX-platform/ci-cd-templates/.github/workflows/nodejs-ci.yml@refs/heads/main`. The role can therefore be assumed only through the approved central reusable Node.js CI workflow; feature-branch pushes, main/release jobs, and other workflows cannot assume it.
+**Implemented.** The module always creates a separate `<service_name>-github-integration-test` IAM role and the corresponding `AWS_INTEGRATION_TEST_ROLE_ARN` repository variable during initial service provisioning. Its GitHub OIDC trust is restricted to the immutable service repository identity, the `pull_request` context, and `developer-experience-DevEX-platform/ci-cd-templates/.github/workflows/nodejs-ci.yml@refs/heads/main`. The role can therefore be assumed only through the approved central reusable Node.js CI workflow; feature-branch pushes, main/release jobs, and other workflows cannot assume it.
 
-The role can perform only `secretsmanager:GetSecretValue`. Its normal resource boundary is the service namespace:
+Integration-test secrets are created and maintained outside Terraform using this naming convention:
 
 ```text
-arn:<partition>:secretsmanager:<region>:<account>:secret:<service_name>/*
+<service_name>/integration/<secret_name>
 ```
 
-Teams create integration-test secrets inside their own `<service_name>/*` namespace without changing Terraform for every secret. Shared or cross-service secrets are an exception: their exact, platform-approved ARNs must be added through `integration_test_additional_secret_arns` and reviewed by the platform team. `Resource "*"` is never granted.
+For example, `payments-api/integration/stripe` and `payments-api/integration/database` follow the standard convention. Terraform does not create, update, rotate, or delete these secrets, and secret values never enter Terraform state.
 
-Setting `integration_tests_enabled = false` removes the normal service namespace. A role is still created when `integration_test_additional_secret_arns` is non-empty, scoped only to those reviewed exceptions. When integration tests are disabled and no additional ARNs are supplied, the integration-test role, policy, and repository variable are not created.
+The role receives only `secretsmanager:GetSecretValue`, scoped to the service's integration namespace:
+
+```text
+arn:<partition>:secretsmanager:<region>:<account>:secret:<service_name>/integration/*
+```
+
+That namespace alone is not sufficient. AWS also requires this resource tag to match:
+
+- `RepositoryId` equals the service repository's immutable numeric GitHub ID.
+
+The manual Platform/Security secret process owns this authorization tag. Application developers cannot grant access merely by adding a declaration to their repository, and the integration-test role has no secret creation, mutation, deletion, or tag-management permissions. A missing or incorrect `RepositoryId` causes AWS to deny `GetSecretValue`.
+
+Adding or rotating a correctly named and tagged secret requires no Terraform change. `.platform/integration-tests.yaml` selects which approved secret is wired into a test environment variable; it does not grant IAM authorization.
 
 ### GitHub Actions variables
 
@@ -137,7 +149,7 @@ The module automatically populates these non-secret, platform-managed repository
 - `AWS_REGION`
 - `AWS_RELEASE_ROLE_ARN`
 - `ECR_REPOSITORY`
-- `AWS_INTEGRATION_TEST_ROLE_ARN` when integration-test secret access is enabled
+- `AWS_INTEGRATION_TEST_ROLE_ARN`
 
 Application developers do not create or maintain these values. The module does not create `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_ACCOUNT_ID`, or `ECR_REGISTRY`. GitHub Actions obtains short-lived AWS credentials through OIDC, and the registry hostname is discovered during ECR login.
 
@@ -219,8 +231,6 @@ In short, the developer owns application code and the Dockerfile. The platform o
 | `github_repository` | `string` | Yes | — | Repository permitted to assume the release role. |
 | `github_repository_id` | `string` | Yes | — | Immutable numeric repository ID discovered by platform automation. |
 | `github_branch` | `string` | No | `main` | Branch permitted to release containers. |
-| `integration_tests_enabled` | `bool` | No | `true` | Allows PR integration tests to read secrets under the service's `<service_name>/*` namespace. |
-| `integration_test_additional_secret_arns` | `set(string)` | No | `[]` | Platform-approved Secrets Manager ARNs outside the service namespace. |
 | `production_environment_reviewer_team_ids` | `set(number)` | No | `[19182366]` | GitHub teams permitted to approve the protected production environment. |
 | `production_environment_prevent_self_review` | `bool` | No | `false` | Prevents a deployment requester from approving their own production deployment when enabled. |
 | `github_oidc_provider_arn` | `string` | Yes | — | Existing account-level GitHub OIDC provider ARN. |

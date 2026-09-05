@@ -9,8 +9,6 @@ module "container_release" {
   github_oidc_provider_arn = var.github_oidc_provider_arn
   aws_region               = var.aws_region
 
-  integration_tests_enabled = true
-
   tags = {
     Scope = "shared"
   }

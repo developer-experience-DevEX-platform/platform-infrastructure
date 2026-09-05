@@ -3,14 +3,8 @@ data "aws_partition" "current" {}
 data "aws_caller_identity" "current" {}
 
 locals {
-  ecr_repository_name = var.ecr_repository_name != "" ? var.ecr_repository_name : var.service_name
-
-  integration_test_role_enabled  = var.integration_tests_enabled || length(var.integration_test_additional_secret_arns) > 0
-  integration_test_namespace_arn = "arn:${data.aws_partition.current.partition}:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:${var.service_name}/*"
-  integration_test_secret_resources = setunion(
-    var.integration_tests_enabled ? toset([local.integration_test_namespace_arn]) : toset([]),
-    var.integration_test_additional_secret_arns,
-  )
+  ecr_repository_name                   = var.ecr_repository_name != "" ? var.ecr_repository_name : var.service_name
+  integration_test_secret_namespace_arn = "arn:${data.aws_partition.current.partition}:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:${var.service_name}/integration/*"
 
   tags = merge(
     {
@@ -94,8 +88,6 @@ resource "aws_iam_role_policy" "release_ecr" {
 }
 
 data "aws_iam_policy_document" "integration_test_assume_role" {
-  count = local.integration_test_role_enabled ? 1 : 0
-
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
 
@@ -125,29 +117,39 @@ data "aws_iam_policy_document" "integration_test_assume_role" {
 }
 
 resource "aws_iam_role" "integration_test" {
-  count = local.integration_test_role_enabled ? 1 : 0
-
   name               = "${var.service_name}-github-integration-test"
-  assume_role_policy = data.aws_iam_policy_document.integration_test_assume_role[0].json
+  assume_role_policy = data.aws_iam_policy_document.integration_test_assume_role.json
   tags               = local.tags
 }
 
-data "aws_iam_policy_document" "integration_test_secrets" {
-  count = local.integration_test_role_enabled ? 1 : 0
+moved {
+  from = aws_iam_role.integration_test[0]
+  to   = aws_iam_role.integration_test
+}
 
+data "aws_iam_policy_document" "integration_test_secrets" {
   statement {
     sid       = "ReadApprovedIntegrationTestSecrets"
     actions   = ["secretsmanager:GetSecretValue"]
-    resources = local.integration_test_secret_resources
+    resources = [local.integration_test_secret_namespace_arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:ResourceTag/RepositoryId"
+      values   = [var.github_repository_id]
+    }
   }
 }
 
 resource "aws_iam_role_policy" "integration_test_secrets" {
-  count = local.integration_test_role_enabled ? 1 : 0
-
   name   = "${var.service_name}-integration-test-secrets"
-  role   = aws_iam_role.integration_test[0].id
-  policy = data.aws_iam_policy_document.integration_test_secrets[0].json
+  role   = aws_iam_role.integration_test.id
+  policy = data.aws_iam_policy_document.integration_test_secrets.json
+}
+
+moved {
+  from = aws_iam_role_policy.integration_test_secrets[0]
+  to   = aws_iam_role_policy.integration_test_secrets
 }
 
 resource "github_actions_variable" "aws_region" {
@@ -169,11 +171,14 @@ resource "github_actions_variable" "ecr_repository" {
 }
 
 resource "github_actions_variable" "aws_integration_test_role_arn" {
-  count = local.integration_test_role_enabled ? 1 : 0
-
   repository    = var.github_repository
   variable_name = "AWS_INTEGRATION_TEST_ROLE_ARN"
-  value         = aws_iam_role.integration_test[0].arn
+  value         = aws_iam_role.integration_test.arn
+}
+
+moved {
+  from = github_actions_variable.aws_integration_test_role_arn[0]
+  to   = github_actions_variable.aws_integration_test_role_arn
 }
 
 resource "github_team_repository" "production_reviewer" {
