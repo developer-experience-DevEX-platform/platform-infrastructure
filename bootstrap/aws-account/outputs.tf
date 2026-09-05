@@ -8,6 +8,16 @@ output "github_oidc_provider_arn" {
   value       = aws_iam_openid_connect_provider.github_actions.arn
 }
 
+output "lambda_artifact_bucket_name" {
+  description = "Name of the shared S3 bucket for immutable Lambda release artifacts."
+  value       = aws_s3_bucket.lambda_artifacts.id
+}
+
+output "lambda_artifact_bucket_arn" {
+  description = "ARN of the shared S3 bucket for immutable Lambda release artifacts."
+  value       = aws_s3_bucket.lambda_artifacts.arn
+}
+
 output "terraform_execution_role_name" {
   description = "Name of the company infrastructure Terraform execution role."
   value       = aws_iam_role.terraform_platform.name
