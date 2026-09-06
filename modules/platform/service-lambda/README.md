@@ -23,7 +23,9 @@ The module creates the non-secret repository variables `AWS_REGION`, `AWS_LAMBDA
 
 ## Staging runtime
 
-The module creates `<service>-staging` as a ZIP Lambda using secure platform defaults: Node.js 24, `dist/handler.handler`, `x86_64`, 256 MB memory, and a 10-second timeout. The initial function code comes from the caller-provided immutable `initial_artifact_key`; Terraform never builds or manufactures a ZIP.
+The platform module composes `modules/aws/lambda`, which owns only the Lambda function and CloudWatch log group. Platform-specific naming, IAM, OIDC, repository variables, and deployment policy remain here.
+
+The composition creates `<service>-staging` as a ZIP Lambda using secure platform defaults: Node.js 24, `dist/handler.handler`, `x86_64`, 256 MB memory, and a 10-second timeout. The initial function code comes from the caller-provided immutable `initial_artifact_key`; Terraform never builds or manufactures a ZIP.
 
 The runtime role `<service>-lambda-staging-execution` trusts only `lambda.amazonaws.com` and can only create log streams and write log events in `/aws/lambda/<service>-staging`. Terraform manages that log group with 30-day retention by default. The runtime has no artifact-bucket or application-service permissions.
 
