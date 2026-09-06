@@ -3,11 +3,25 @@
 This stack provisions the foundational AWS resources required before normal platform and service Terraform stacks can run from GitHub Actions:
 
 - A protected, versioned, encrypted S3 bucket for Terraform state
+- A protected, versioned, encrypted S3 bucket for immutable Lambda release artifacts
 - One account-level GitHub Actions OIDC provider
 - The `devex-terraform-plan` read-only pull-request role
 - The `devex-terraform-platform` Terraform execution role
 
-It does not create service ECR repositories, service release roles, Kubernetes resources, GitOps resources, deployments, or GitHub repository variables.
+It does not create service ECR repositories, Lambda functions, service release roles, Kubernetes resources, GitOps resources, deployments, or GitHub repository variables.
+
+## Lambda artifact store
+
+The account owns one shared bucket named `devex-lambda-artifacts-<account-id>`. Public access is blocked, object ownership is enforced by the bucket owner, AES-256 server-side encryption and versioning are enabled, and force deletion is disabled.
+
+Immutable Lambda packages use this contract:
+
+```text
+<service-name>/<40-character-git-sha>/function.zip
+<service-name>/<40-character-git-sha>/function.zip.sha256
+```
+
+There is no `latest` object or mutable environment prefix. The opt-in `modules/platform/service-lambda` module grants each service release identity access only to its own `<service-name>/*` prefix.
 
 ## One-time bootstrap lifecycle
 
