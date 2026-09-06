@@ -20,12 +20,12 @@ output "lambda_artifact_prefix" {
 
 output "staging_function_name" {
   description = "Name of the staging Lambda function."
-  value       = aws_lambda_function.staging.function_name
+  value       = module.staging_lambda.function_name
 }
 
 output "staging_function_arn" {
   description = "ARN of the staging Lambda function."
-  value       = aws_lambda_function.staging.arn
+  value       = module.staging_lambda.function_arn
 }
 
 output "staging_execution_role_arn" {
@@ -40,5 +40,5 @@ output "staging_deploy_role_arn" {
 
 output "staging_log_group_name" {
   description = "Name of the staging Lambda CloudWatch log group."
-  value       = aws_cloudwatch_log_group.staging.name
+  value       = module.staging_lambda.log_group_name
 }

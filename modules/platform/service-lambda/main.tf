@@ -5,6 +5,7 @@ locals {
   artifact_bucket_arn   = "arn:${data.aws_partition.current.partition}:s3:::${var.lambda_artifact_bucket_name}"
   artifact_prefix       = "${var.service_name}/"
   staging_function_name = "${var.service_name}-staging"
+  staging_log_group_arn = "arn:${data.aws_partition.current.partition}:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.staging_function_name}"
 
   tags = merge(
     {
@@ -115,12 +116,6 @@ resource "aws_iam_role" "lambda_execution" {
   tags               = local.tags
 }
 
-resource "aws_cloudwatch_log_group" "staging" {
-  name              = "/aws/lambda/${local.staging_function_name}"
-  retention_in_days = var.staging_log_retention_days
-  tags              = local.tags
-}
-
 data "aws_iam_policy_document" "lambda_execution_logs" {
   statement {
     sid = "WriteStagingFunctionLogs"
@@ -128,7 +123,7 @@ data "aws_iam_policy_document" "lambda_execution_logs" {
       "logs:CreateLogStream",
       "logs:PutLogEvents",
     ]
-    resources = ["${aws_cloudwatch_log_group.staging.arn}:*"]
+    resources = ["${local.staging_log_group_arn}:*"]
   }
 }
 
@@ -138,34 +133,23 @@ resource "aws_iam_role_policy" "lambda_execution_logs" {
   policy = data.aws_iam_policy_document.lambda_execution_logs.json
 }
 
-resource "aws_lambda_function" "staging" {
-  function_name = local.staging_function_name
-  description   = "Staging Lambda function for ${var.service_name}."
-  role          = aws_iam_role.lambda_execution.arn
-  package_type  = "Zip"
-  runtime       = var.staging_runtime
-  handler       = var.staging_handler
-  architectures = ["x86_64"]
-  memory_size   = var.staging_memory_size
-  timeout       = var.staging_timeout
-  s3_bucket     = var.lambda_artifact_bucket_name
-  s3_key        = var.initial_artifact_key
-  tags          = local.tags
+module "staging_lambda" {
+  source = "../../aws/lambda"
+
+  function_name        = local.staging_function_name
+  description          = "Staging Lambda function for ${var.service_name}."
+  execution_role_arn   = aws_iam_role.lambda_execution.arn
+  artifact_bucket_name = var.lambda_artifact_bucket_name
+  initial_artifact_key = var.initial_artifact_key
+  runtime              = var.staging_runtime
+  handler              = var.staging_handler
+  architecture         = "x86_64"
+  memory_size          = var.staging_memory_size
+  timeout              = var.staging_timeout
+  log_retention_days   = var.staging_log_retention_days
+  tags                 = local.tags
 
   depends_on = [aws_iam_role_policy.lambda_execution_logs]
-
-  lifecycle {
-    precondition {
-      condition     = startswith(var.initial_artifact_key, "${var.service_name}/")
-      error_message = "initial_artifact_key must remain inside the service artifact prefix."
-    }
-
-    ignore_changes = [
-      s3_bucket,
-      s3_key,
-      s3_object_version,
-    ]
-  }
 }
 
 data "aws_iam_policy_document" "staging_deploy_assume_role" {
@@ -212,7 +196,7 @@ data "aws_iam_policy_document" "staging_deploy" {
       "lambda:PublishVersion",
       "lambda:UpdateFunctionCode",
     ]
-    resources = [aws_lambda_function.staging.arn]
+    resources = [module.staging_lambda.function_arn]
   }
 
   statement {
@@ -237,5 +221,5 @@ resource "github_actions_variable" "aws_lambda_staging_deploy_role_arn" {
 resource "github_actions_variable" "aws_lambda_staging_function_name" {
   repository    = var.github_repository
   variable_name = "AWS_LAMBDA_STAGING_FUNCTION_NAME"
-  value         = aws_lambda_function.staging.function_name
+  value         = module.staging_lambda.function_name
 }

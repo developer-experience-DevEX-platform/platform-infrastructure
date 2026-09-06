@@ -64,8 +64,8 @@ variable "initial_artifact_key" {
   type        = string
 
   validation {
-    condition     = can(regex("^[a-z0-9]+(?:-[a-z0-9]+)*/[0-9a-f]{40}/function\\.zip$", var.initial_artifact_key))
-    error_message = "initial_artifact_key must be <service>/<40-character-lowercase-git-sha>/function.zip."
+    condition     = can(regex("^[a-z0-9]+(?:-[a-z0-9]+)*/[0-9a-f]{40}/function\\.zip$", var.initial_artifact_key)) && startswith(var.initial_artifact_key, "${var.service_name}/")
+    error_message = "initial_artifact_key must be <service_name>/<40-character-lowercase-git-sha>/function.zip."
   }
 }
 
