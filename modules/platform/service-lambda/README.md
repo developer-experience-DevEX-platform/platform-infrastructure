@@ -1,6 +1,6 @@
 # Service Lambda platform module
 
-This opt-in module provisions the GitHub Actions publishing identity for a Lambda-target service. It does not create a Lambda function or execution role and does not affect existing Kubernetes services.
+This opt-in module provisions Lambda artifact publishing and a staging runtime for a Lambda-target service. It does not affect existing Kubernetes services.
 
 The shared artifact bucket is owned by `bootstrap/aws-account`; callers pass its `lambda_artifact_bucket_name` output into this module. Artifacts use immutable keys:
 
@@ -17,6 +17,26 @@ OIDC trust requires all of the following:
 - `sub` is the immutable owner/repository identity on the configured `main` branch
 - `job_workflow_ref` is `developer-experience-DevEX-platform/ci-cd-templates/.github/workflows/nodejs-lambda-release.yml@refs/heads/main`
 
-The referenced reusable release workflow is a Phase 3 prerequisite. Until it exists at that exact path on `main`, the role cannot be assumed through another workflow.
+The release role is separate from the staging deployment role and cannot update a Lambda function.
 
 The module creates the non-secret repository variables `AWS_REGION`, `AWS_LAMBDA_RELEASE_ROLE_ARN`, and `AWS_LAMBDA_ARTIFACT_BUCKET`. `AWS_REGION` intentionally matches the existing platform variable contract.
+
+## Staging runtime
+
+The module creates `<service>-staging` as a ZIP Lambda using secure platform defaults: Node.js 24, `dist/handler.handler`, `x86_64`, 256 MB memory, and a 10-second timeout. The initial function code comes from the caller-provided immutable `initial_artifact_key`; Terraform never builds or manufactures a ZIP.
+
+The runtime role `<service>-lambda-staging-execution` trusts only `lambda.amazonaws.com` and can only create log streams and write log events in `/aws/lambda/<service>-staging`. Terraform manages that log group with 30-day retention by default. The runtime has no artifact-bucket or application-service permissions.
+
+The future `<service>-github-lambda-staging-deploy` role requires:
+
+- `aud` equal to `sts.amazonaws.com`
+- the immutable service repository identity on `main`
+- `job_workflow_ref` equal to `developer-experience-DevEX-platform/ci-cd-templates/.github/workflows/nodejs-lambda-staging-deploy.yml@refs/heads/main`
+
+It can read only the service artifact prefix and call `GetFunction`, `GetFunctionConfiguration`, `UpdateFunctionCode`, and `PublishVersion` only for `<service>-staging`. The workflow does not exist until Phase 4B, so no other workflow can assume the role.
+
+## Terraform and CD ownership
+
+Terraform owns the function resource and configuration: runtime, handler, architecture, memory, timeout, execution role, log group, tags, and platform identities. Future CD owns code updates and published versions. Consequently, Terraform ignores only `s3_bucket`, `s3_key`, and `s3_object_version` after initial function creation; it continues reconciling all runtime configuration.
+
+The staging CD variables are `AWS_LAMBDA_STAGING_DEPLOY_ROLE_ARN` and `AWS_LAMBDA_STAGING_FUNCTION_NAME`. They reuse the existing `AWS_REGION` and `AWS_LAMBDA_ARTIFACT_BUCKET` values. No credentials are stored in GitHub.
