@@ -494,6 +494,7 @@ data "aws_iam_policy_document" "terraform_platform" {
     ]
     resources = [
       "arn:${data.aws_partition.current.partition}:logs:*:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/*-staging",
+      "arn:${data.aws_partition.current.partition}:logs:*:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/*-staging:*",
     ]
   }
 
@@ -686,6 +687,7 @@ data "aws_iam_policy_document" "terraform_plan" {
     actions = ["logs:ListTagsForResource"]
     resources = [
       "arn:${data.aws_partition.current.partition}:logs:*:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/*-staging",
+      "arn:${data.aws_partition.current.partition}:logs:*:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/*-staging:*",
     ]
   }
 
