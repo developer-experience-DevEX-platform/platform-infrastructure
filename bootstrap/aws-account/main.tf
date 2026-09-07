@@ -467,7 +467,6 @@ data "aws_iam_policy_document" "terraform_platform" {
       "lambda:ListVersionsByFunction",
       "lambda:TagResource",
       "lambda:UntagResource",
-      "lambda:UpdateFunctionCode",
       "lambda:UpdateFunctionConfiguration",
     ]
     resources = [
