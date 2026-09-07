@@ -20,6 +20,7 @@ module "lambda_release" {
   github_oidc_provider_arn    = var.github_oidc_provider_arn
   aws_region                  = var.aws_region
   lambda_artifact_bucket_name = data.terraform_remote_state.bootstrap.outputs.lambda_artifact_bucket_name
+  initial_artifact_key        = "nodejs-lambda-golden-path-test/f2be832527f733af0617f591626bfdbb22006639/function.zip"
 
   tags = {
     Scope = "shared"

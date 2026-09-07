@@ -420,6 +420,90 @@ data "aws_iam_policy_document" "terraform_platform" {
   }
 
   statement {
+    sid = "ManageServiceLambdaRuntimeRoles"
+    actions = [
+      "iam:CreateRole",
+      "iam:DeleteRole",
+      "iam:DeleteRolePolicy",
+      "iam:GetRole",
+      "iam:GetRolePolicy",
+      "iam:ListAttachedRolePolicies",
+      "iam:ListInstanceProfilesForRole",
+      "iam:ListRolePolicies",
+      "iam:PutRolePolicy",
+      "iam:TagRole",
+      "iam:UntagRole",
+      "iam:UpdateAssumeRolePolicy",
+    ]
+    resources = [
+      "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/*-lambda-staging-execution",
+      "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/*-github-lambda-staging-deploy",
+    ]
+  }
+
+  statement {
+    sid     = "PassLambdaExecutionRoles"
+    actions = ["iam:PassRole"]
+    resources = [
+      "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/*-lambda-staging-execution",
+    ]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["lambda.amazonaws.com"]
+    }
+  }
+
+  statement {
+    sid = "ManageStagingLambdaFunctions"
+    actions = [
+      "lambda:CreateFunction",
+      "lambda:DeleteFunction",
+      "lambda:GetFunction",
+      "lambda:GetFunctionCodeSigningConfig",
+      "lambda:GetFunctionConfiguration",
+      "lambda:ListTags",
+      "lambda:ListVersionsByFunction",
+      "lambda:TagResource",
+      "lambda:UntagResource",
+      "lambda:UpdateFunctionCode",
+      "lambda:UpdateFunctionConfiguration",
+    ]
+    resources = [
+      "arn:${data.aws_partition.current.partition}:lambda:*:${data.aws_caller_identity.current.account_id}:function:*-staging",
+    ]
+  }
+
+  statement {
+    sid       = "ReadLambdaLogGroups"
+    actions   = ["logs:DescribeLogGroups"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "ManageLambdaLogGroups"
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:DeleteLogGroup",
+      "logs:DeleteRetentionPolicy",
+      "logs:ListTagsForResource",
+      "logs:PutRetentionPolicy",
+      "logs:TagResource",
+      "logs:UntagResource",
+    ]
+    resources = [
+      "arn:${data.aws_partition.current.partition}:logs:*:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/*-staging",
+    ]
+  }
+
+  statement {
+    sid       = "ReadLambdaBootstrapArtifacts"
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.lambda_artifacts.arn}/*"]
+  }
+
+  statement {
     sid = "ListGitHubOIDCProviders"
     actions = [
       "iam:ListOpenIDConnectProviders",
@@ -559,6 +643,49 @@ data "aws_iam_policy_document" "terraform_plan" {
     ]
     resources = [
       "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/*-github-lambda-release",
+    ]
+  }
+
+  statement {
+    sid = "ReadServiceLambdaRuntimeRoles"
+    actions = [
+      "iam:GetRole",
+      "iam:GetRolePolicy",
+      "iam:ListAttachedRolePolicies",
+      "iam:ListInstanceProfilesForRole",
+      "iam:ListRolePolicies",
+    ]
+    resources = [
+      "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/*-lambda-staging-execution",
+      "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/*-github-lambda-staging-deploy",
+    ]
+  }
+
+  statement {
+    sid = "ReadStagingLambdaFunctions"
+    actions = [
+      "lambda:GetFunction",
+      "lambda:GetFunctionCodeSigningConfig",
+      "lambda:GetFunctionConfiguration",
+      "lambda:ListTags",
+      "lambda:ListVersionsByFunction",
+    ]
+    resources = [
+      "arn:${data.aws_partition.current.partition}:lambda:*:${data.aws_caller_identity.current.account_id}:function:*-staging",
+    ]
+  }
+
+  statement {
+    sid       = "ReadLambdaLogGroups"
+    actions   = ["logs:DescribeLogGroups"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid     = "ReadLambdaLogGroupTags"
+    actions = ["logs:ListTagsForResource"]
+    resources = [
+      "arn:${data.aws_partition.current.partition}:logs:*:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/*-staging",
     ]
   }
 
