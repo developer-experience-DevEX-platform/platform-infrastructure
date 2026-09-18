@@ -3,7 +3,7 @@ data "aws_caller_identity" "current" {}
 data "aws_partition" "current" {}
 
 module "terraform_state" {
-  source = "git::https://github.com/developer-experience-DevEX-platform/terraform-modules.git//aws/s3?ref=v0.2.0"
+  source = "git::https://github.com/developer-experience-DevEX-platform/terraform-modules.git//aws/s3?ref=v0.3.0"
 
   name = var.terraform_state_bucket_name
   tags = {
@@ -32,7 +32,7 @@ moved {
 }
 
 module "lambda_artifacts" {
-  source = "git::https://github.com/developer-experience-DevEX-platform/terraform-modules.git//aws/s3?ref=v0.2.0"
+  source = "git::https://github.com/developer-experience-DevEX-platform/terraform-modules.git//aws/s3?ref=v0.3.0"
 
   name = "devex-lambda-artifacts-${data.aws_caller_identity.current.account_id}"
   tags = {
@@ -357,27 +357,6 @@ data "aws_iam_policy_document" "terraform_platform" {
   }
 
   statement {
-    sid = "ManageServiceIntegrationTestRoles"
-    actions = [
-      "iam:CreateRole",
-      "iam:DeleteRole",
-      "iam:DeleteRolePolicy",
-      "iam:GetRole",
-      "iam:GetRolePolicy",
-      "iam:ListAttachedRolePolicies",
-      "iam:ListInstanceProfilesForRole",
-      "iam:ListRolePolicies",
-      "iam:PutRolePolicy",
-      "iam:TagRole",
-      "iam:UntagRole",
-      "iam:UpdateAssumeRolePolicy",
-    ]
-    resources = [
-      "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/*-github-integration-test",
-    ]
-  }
-
-  statement {
     sid = "ManageServiceLambdaReleaseRoles"
     actions = [
       "iam:CreateRole",
@@ -594,20 +573,6 @@ data "aws_iam_policy_document" "terraform_plan" {
     ]
     resources = [
       "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/*-github-release",
-    ]
-  }
-
-  statement {
-    sid = "ReadServiceIntegrationTestRoles"
-    actions = [
-      "iam:GetRole",
-      "iam:GetRolePolicy",
-      "iam:ListAttachedRolePolicies",
-      "iam:ListInstanceProfilesForRole",
-      "iam:ListRolePolicies",
-    ]
-    resources = [
-      "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/*-github-integration-test",
     ]
   }
 

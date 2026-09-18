@@ -10,7 +10,7 @@ data "terraform_remote_state" "bootstrap" {
 }
 
 module "lambda_release" {
-  source = "git::https://github.com/developer-experience-DevEX-platform/terraform-modules.git//platform/service-lambda?ref=v0.2.0"
+  source = "git::https://github.com/developer-experience-DevEX-platform/terraform-modules.git//platform/service-lambda?ref=v0.3.0"
 
   service_name                = var.service_name
   github_owner                = var.github_owner
