@@ -1,5 +1,5 @@
 module "networking" {
-  source = "../../../../modules/aws/networking"
+  source = "git::https://github.com/developer-experience-DevEX-platform/terraform-modules.git//aws/networking?ref=v0.3.0"
 
   name     = "devex-staging"
   vpc_cidr = "10.10.0.0/16"

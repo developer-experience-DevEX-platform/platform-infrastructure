@@ -2,88 +2,67 @@ data "aws_caller_identity" "current" {}
 
 data "aws_partition" "current" {}
 
-resource "aws_s3_bucket" "terraform_state" {
-  bucket        = var.terraform_state_bucket_name
-  force_destroy = false
+module "terraform_state" {
+  source = "git::https://github.com/developer-experience-DevEX-platform/terraform-modules.git//aws/s3?ref=v0.3.0"
 
+  name = var.terraform_state_bucket_name
   tags = {
-    ManagedBy = "Terraform"
-    Platform  = "DevEx"
-    Purpose   = "TerraformState"
+    Purpose = "TerraformState"
   }
 }
 
-resource "aws_s3_bucket_versioning" "terraform_state" {
-  bucket = aws_s3_bucket.terraform_state.id
-
-  versioning_configuration {
-    status = "Enabled"
-  }
+moved {
+  from = aws_s3_bucket.terraform_state
+  to   = module.terraform_state.aws_s3_bucket.this
 }
 
-resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" {
-  bucket = aws_s3_bucket.terraform_state.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
+moved {
+  from = aws_s3_bucket_versioning.terraform_state
+  to   = module.terraform_state.aws_s3_bucket_versioning.this
 }
 
-resource "aws_s3_bucket_public_access_block" "terraform_state" {
-  bucket = aws_s3_bucket.terraform_state.id
-
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
+moved {
+  from = aws_s3_bucket_server_side_encryption_configuration.terraform_state
+  to   = module.terraform_state.aws_s3_bucket_server_side_encryption_configuration.this
 }
 
-resource "aws_s3_bucket" "lambda_artifacts" {
-  bucket        = "devex-lambda-artifacts-${data.aws_caller_identity.current.account_id}"
-  force_destroy = false
+moved {
+  from = aws_s3_bucket_public_access_block.terraform_state
+  to   = module.terraform_state.aws_s3_bucket_public_access_block.this
+}
 
+module "lambda_artifacts" {
+  source = "git::https://github.com/developer-experience-DevEX-platform/terraform-modules.git//aws/s3?ref=v0.3.0"
+
+  name = "devex-lambda-artifacts-${data.aws_caller_identity.current.account_id}"
   tags = {
-    ManagedBy = "Terraform"
-    Platform  = "DevEx"
-    Purpose   = "LambdaArtifacts"
+    Purpose = "LambdaArtifacts"
   }
 }
 
-resource "aws_s3_bucket_versioning" "lambda_artifacts" {
-  bucket = aws_s3_bucket.lambda_artifacts.id
-
-  versioning_configuration {
-    status = "Enabled"
-  }
+moved {
+  from = aws_s3_bucket.lambda_artifacts
+  to   = module.lambda_artifacts.aws_s3_bucket.this
 }
 
-resource "aws_s3_bucket_server_side_encryption_configuration" "lambda_artifacts" {
-  bucket = aws_s3_bucket.lambda_artifacts.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
+moved {
+  from = aws_s3_bucket_versioning.lambda_artifacts
+  to   = module.lambda_artifacts.aws_s3_bucket_versioning.this
 }
 
-resource "aws_s3_bucket_ownership_controls" "lambda_artifacts" {
-  bucket = aws_s3_bucket.lambda_artifacts.id
-
-  rule {
-    object_ownership = "BucketOwnerEnforced"
-  }
+moved {
+  from = aws_s3_bucket_server_side_encryption_configuration.lambda_artifacts
+  to   = module.lambda_artifacts.aws_s3_bucket_server_side_encryption_configuration.this
 }
 
-resource "aws_s3_bucket_public_access_block" "lambda_artifacts" {
-  bucket = aws_s3_bucket.lambda_artifacts.id
+moved {
+  from = aws_s3_bucket_ownership_controls.lambda_artifacts
+  to   = module.lambda_artifacts.aws_s3_bucket_ownership_controls.this
+}
 
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
+moved {
+  from = aws_s3_bucket_public_access_block.lambda_artifacts
+  to   = module.lambda_artifacts.aws_s3_bucket_public_access_block.this
 }
 
 resource "aws_iam_openid_connect_provider" "github_actions" {
@@ -378,27 +357,6 @@ data "aws_iam_policy_document" "terraform_platform" {
   }
 
   statement {
-    sid = "ManageServiceIntegrationTestRoles"
-    actions = [
-      "iam:CreateRole",
-      "iam:DeleteRole",
-      "iam:DeleteRolePolicy",
-      "iam:GetRole",
-      "iam:GetRolePolicy",
-      "iam:ListAttachedRolePolicies",
-      "iam:ListInstanceProfilesForRole",
-      "iam:ListRolePolicies",
-      "iam:PutRolePolicy",
-      "iam:TagRole",
-      "iam:UntagRole",
-      "iam:UpdateAssumeRolePolicy",
-    ]
-    resources = [
-      "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/*-github-integration-test",
-    ]
-  }
-
-  statement {
     sid = "ManageServiceLambdaReleaseRoles"
     actions = [
       "iam:CreateRole",
@@ -500,7 +458,7 @@ data "aws_iam_policy_document" "terraform_platform" {
   statement {
     sid       = "ReadLambdaBootstrapArtifacts"
     actions   = ["s3:GetObject"]
-    resources = ["${aws_s3_bucket.lambda_artifacts.arn}/*"]
+    resources = ["${module.lambda_artifacts.arn}/*"]
   }
 
   statement {
@@ -524,7 +482,7 @@ data "aws_iam_policy_document" "terraform_platform" {
     actions = [
       "s3:ListBucket",
     ]
-    resources = [aws_s3_bucket.terraform_state.arn]
+    resources = [module.terraform_state.arn]
   }
 
   statement {
@@ -533,7 +491,7 @@ data "aws_iam_policy_document" "terraform_platform" {
       "s3:GetObject",
       "s3:PutObject",
     ]
-    resources = ["${aws_s3_bucket.terraform_state.arn}/*"]
+    resources = ["${module.terraform_state.arn}/*"]
   }
 
   statement {
@@ -543,7 +501,7 @@ data "aws_iam_policy_document" "terraform_platform" {
       "s3:PutObject",
       "s3:DeleteObject",
     ]
-    resources = ["${aws_s3_bucket.terraform_state.arn}/*.tflock"]
+    resources = ["${module.terraform_state.arn}/*.tflock"]
   }
 }
 
@@ -615,20 +573,6 @@ data "aws_iam_policy_document" "terraform_plan" {
     ]
     resources = [
       "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/*-github-release",
-    ]
-  }
-
-  statement {
-    sid = "ReadServiceIntegrationTestRoles"
-    actions = [
-      "iam:GetRole",
-      "iam:GetRolePolicy",
-      "iam:ListAttachedRolePolicies",
-      "iam:ListInstanceProfilesForRole",
-      "iam:ListRolePolicies",
-    ]
-    resources = [
-      "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/*-github-integration-test",
     ]
   }
 
@@ -711,7 +655,7 @@ data "aws_iam_policy_document" "terraform_plan" {
     actions = [
       "s3:ListBucket",
     ]
-    resources = [aws_s3_bucket.terraform_state.arn]
+    resources = [module.terraform_state.arn]
   }
 
   statement {
@@ -719,7 +663,7 @@ data "aws_iam_policy_document" "terraform_plan" {
     actions = [
       "s3:GetObject",
     ]
-    resources = ["${aws_s3_bucket.terraform_state.arn}/*"]
+    resources = ["${module.terraform_state.arn}/*"]
   }
 
   statement {
@@ -729,7 +673,7 @@ data "aws_iam_policy_document" "terraform_plan" {
       "s3:PutObject",
       "s3:DeleteObject",
     ]
-    resources = ["${aws_s3_bucket.terraform_state.arn}/*.tflock"]
+    resources = ["${module.terraform_state.arn}/*.tflock"]
   }
 }
 

@@ -1,36 +1,13 @@
 # Platform Infrastructure
 
-This repository owns shared platform infrastructure and the environment stacks generated or maintained by DevEx automation.
-
-## Architecture
-
-### `modules/aws/`
-
-Reusable, low-level AWS infrastructure building blocks such as VPC, IAM, ECR, EC2, EKS, and Lambda modules.
-
-### `modules/platform/`
-
-Higher-level developer platform capabilities that may compose multiple AWS modules or resources. Examples include:
-
-- `service-container-release`
-- `service-kubernetes`
-- `service-lambda`
-
-### `environments/`
-
-Actual deployed infrastructure, separated by environment. Within each environment:
-
-- `platform/` contains shared platform infrastructure.
-- `services/` contains per-service stacks.
-
-The intended dependency direction is:
+This repository owns deployed platform and service stacks. Reusable modules live in [`terraform-modules`](https://github.com/developer-experience-DevEX-platform/terraform-modules) and are pinned by git tag.
 
 ```text
-environment stack
-    ↓
-platform module
-    ↓
-AWS modules/resources
+bootstrap / environments / services
+        ↓
+terraform-modules/platform/*     (service OIDC, GitHub, IAM)
+        ↓
+terraform-modules/aws/*          (s3, ecr, networking, eks, lambda)
 ```
 
-Application developers should not directly consume low-level AWS modules. Backstage and platform automation should generate or update service environment stacks.
+Application developers should not call `aws` modules. Backstage and platform automation generate service stacks that call `platform` modules.
