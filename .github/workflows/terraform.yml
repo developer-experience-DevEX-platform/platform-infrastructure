@@ -5,7 +5,6 @@ on:
     paths:
       - 'services/**'
       - 'environments/**'
-      - 'modules/**'
       - '.github/workflows/terraform.yml'
   push:
     branches:
@@ -13,7 +12,6 @@ on:
     paths:
       - 'services/**'
       - 'environments/**'
-      - 'modules/**'
       - '.github/workflows/terraform.yml'
 
 permissions:
@@ -55,7 +53,7 @@ jobs:
           fi
 
           if printf '%s\n' "${changed_files[@]}" |
-            grep -Eq '^(modules/|\.github/workflows/terraform\.yml$)'; then
+            grep -Eq '^(\.github/workflows/terraform\.yml$)'; then
             mapfile -t terraform_stacks < <(
               {
                 find services -mindepth 1 -maxdepth 1 -type d
