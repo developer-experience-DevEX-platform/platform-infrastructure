@@ -1,6 +1,6 @@
 output "terraform_state_bucket_name" {
   description = "Name of the Terraform remote-state S3 bucket."
-  value       = aws_s3_bucket.terraform_state.id
+  value       = module.terraform_state.id
 }
 
 output "github_oidc_provider_arn" {
@@ -10,12 +10,12 @@ output "github_oidc_provider_arn" {
 
 output "lambda_artifact_bucket_name" {
   description = "Name of the shared S3 bucket for immutable Lambda release artifacts."
-  value       = aws_s3_bucket.lambda_artifacts.id
+  value       = module.lambda_artifacts.id
 }
 
 output "lambda_artifact_bucket_arn" {
   description = "ARN of the shared S3 bucket for immutable Lambda release artifacts."
-  value       = aws_s3_bucket.lambda_artifacts.arn
+  value       = module.lambda_artifacts.arn
 }
 
 output "terraform_execution_role_name" {

@@ -49,7 +49,7 @@ data "aws_iam_policy_document" "platform_admin_assume_role" {
 }
 
 module "eks" {
-  source = "../../../../modules/aws/eks"
+  source = "git::https://github.com/developer-experience-DevEX-platform/terraform-modules.git//aws/eks?ref=v0.2.0"
 
   cluster_name       = "devex-staging"
   kubernetes_version = "1.36"
