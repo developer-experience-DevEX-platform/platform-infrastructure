@@ -1,6 +1,7 @@
 # Posts to Slack when Backstage opens a golden-path PR (branch backstage/**).
-# Set org or repo secret SLACK_GOLDEN_PATH_WEBHOOK to a Slack incoming webhook.
-# Missing webhook fails this job only; continue-on-error keeps the PR mergeable.
+# Set org or repo secret SLACK_GOLDEN_PATH_WEBHOOK to a Slack incoming webhook
+# and grant it to platform-infrastructure and platform-gitops. An empty
+# webhook skips this step so the PR stays green.
 name: Notify golden-path PR
 
 on:
@@ -17,9 +18,11 @@ jobs:
     if: startsWith(github.head_ref, 'backstage/')
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    continue-on-error: true
+    env:
+      SLACK_GOLDEN_PATH_WEBHOOK: ${{ secrets.SLACK_GOLDEN_PATH_WEBHOOK }}
     steps:
       - name: Post pull request to Slack
+        if: env.SLACK_GOLDEN_PATH_WEBHOOK != ''
         uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.1.1
         with:
           webhook: ${{ secrets.SLACK_GOLDEN_PATH_WEBHOOK }}
