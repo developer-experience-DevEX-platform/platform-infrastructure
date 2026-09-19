@@ -4,16 +4,12 @@ on:
   pull_request:
     paths:
       - 'services/**'
-      - 'environments/**'
-      - 'modules/**'
       - '.github/workflows/terraform.yml'
   push:
     branches:
       - main
     paths:
       - 'services/**'
-      - 'environments/**'
-      - 'modules/**'
       - '.github/workflows/terraform.yml'
 
 permissions:
@@ -32,7 +28,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Detect affected Terraform stacks
+      - name: Detect affected service stacks
         id: detect
         env:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
@@ -43,66 +39,36 @@ jobs:
             git diff --no-renames --diff-filter=ACMRTUXB --name-only "$BASE_SHA" "$HEAD_SHA"
           )
 
-          mapfile -t unsupported_environment_paths < <(
-            printf '%s\n' "${changed_files[@]}" |
-              awk -F/ '$1 == "environments" && $2 != "staging" && $2 != "production"'
-          )
-
-          if [[ ${#unsupported_environment_paths[@]} -gt 0 ]]; then
-            echo "::error::Unsupported environment detected. Only staging and production are allowed."
-            printf 'Unsupported path: %s\n' "${unsupported_environment_paths[@]}"
-            exit 1
-          fi
-
           if printf '%s\n' "${changed_files[@]}" |
-            grep -Eq '^(modules/|\.github/workflows/terraform\.yml$)'; then
+            grep -Eq '^\.github/workflows/terraform\.yml$'; then
             mapfile -t terraform_stacks < <(
-              {
-                find services -mindepth 1 -maxdepth 1 -type d
-                find environments -mindepth 3 -maxdepth 3 -type d \
-                  \( -path 'environments/staging/platform/*' -o -path 'environments/production/platform/*' \)
-              } | sort -u
+              find services -mindepth 1 -maxdepth 1 -type d | sort -u
             )
           else
             mapfile -t terraform_stacks < <(
               printf '%s\n' "${changed_files[@]}" |
-              sed -nE \
-                -e 's#^(services/[^/]+)/.*#\1#p' \
-                -e 's#^(environments/(staging|production)/platform/[^/]+)/.*#\1#p' |
+              sed -nE 's#^(services/[^/]+)/.*#\1#p' |
               sort -u
             )
           fi
 
           if [[ ${#terraform_stacks[@]} -eq 0 ]]; then
-            echo "::error::No supported Terraform stacks were detected under services/* or environments/{staging,production}/platform/*."
+            echo "::error::No service stacks were detected under services/*."
             exit 1
           fi
 
           matrix='[]'
           for working_directory in "${terraform_stacks[@]}"; do
-            if [[ "$working_directory" == services/* ]]; then
-              stack_scope="shared"
-              stack_type="services"
-              stack_name=$(cut -d/ -f2 <<< "$working_directory")
-              stack_id="services/$stack_name"
-            else
-              stack_scope=$(cut -d/ -f2 <<< "$working_directory")
-              stack_type="platform"
-              stack_name=$(cut -d/ -f4 <<< "$working_directory")
-              stack_id="$stack_scope/platform/$stack_name"
-            fi
+            stack_name=$(cut -d/ -f2 <<< "$working_directory")
+            stack_id="services/$stack_name"
             state_key="$stack_id/terraform.tfstate"
             matrix=$(jq -c \
               --arg working_directory "$working_directory" \
-              --arg stack_scope "$stack_scope" \
-              --arg stack_type "$stack_type" \
               --arg stack_name "$stack_name" \
               --arg stack_id "$stack_id" \
               --arg state_key "$state_key" \
               '. + [{
                 working_directory: $working_directory,
-                stack_scope: $stack_scope,
-                stack_type: $stack_type,
                 stack_name: $stack_name,
                 stack_id: $stack_id,
                 state_key: $state_key
@@ -148,7 +114,7 @@ jobs:
           terraform_wrapper: false
 
       - name: Check Terraform formatting
-        run: terraform fmt -check -recursive
+        run: terraform fmt -check -recursive services
 
       - name: Initialize Terraform
         working-directory: ${{ matrix.stack.working_directory }}
@@ -164,7 +130,6 @@ jobs:
         run: terraform validate
 
       - name: Discover GitHub repository identity
-        if: matrix.stack.stack_type == 'services'
         env:
           GH_TOKEN: ${{ secrets.PLATFORM_GITHUB_TOKEN }}
           GITHUB_OWNER: ${{ github.repository_owner }}
@@ -198,29 +163,11 @@ jobs:
 
       - name: Plan Terraform changes
         id: plan
-        if: matrix.stack.stack_id != 'staging/platform/argocd'
         working-directory: ${{ matrix.stack.working_directory }}
         run: terraform plan -out=tfplan
 
-      - name: Set up Helm for static validation
-        if: matrix.stack.stack_id == 'staging/platform/argocd'
-        uses: azure/setup-helm@v4.3.0
-
-      - name: Validate Argo CD Helm rendering
-        if: matrix.stack.stack_id == 'staging/platform/argocd'
-        working-directory: ${{ matrix.stack.working_directory }}
-        shell: bash
-        run: |
-          helm repo add argo https://argoproj.github.io/argo-helm
-          helm repo update argo
-          helm pull argo/argo-cd --version 10.4.0 --untar --untardir /tmp
-          helm lint /tmp/argo-cd --values values.yaml
-          helm template argocd /tmp/argo-cd \
-            --namespace argocd \
-            --values values.yaml > /tmp/argocd-rendered.yaml
-
       - name: Render Terraform plan
-        if: always() && matrix.stack.stack_id != 'staging/platform/argocd'
+        if: always()
         working-directory: ${{ matrix.stack.working_directory }}
         shell: bash
         run: |
@@ -231,18 +178,16 @@ jobs:
           fi
 
       - name: Upload Terraform plan
-        if: always() && matrix.stack.stack_id != 'staging/platform/argocd'
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: terraform-plan-${{ matrix.stack.stack_scope }}-${{ matrix.stack.stack_type }}-${{ matrix.stack.stack_name }}
+          name: terraform-plan-services-${{ matrix.stack.stack_name }}
           path: ${{ matrix.stack.working_directory }}/tfplan.txt
           retention-days: 30
 
       - name: Write plan summary
         if: always()
         env:
-          STACK_SCOPE: ${{ matrix.stack.stack_scope }}
-          STACK_TYPE: ${{ matrix.stack.stack_type }}
           STACK_NAME: ${{ matrix.stack.stack_name }}
           WORKING_DIRECTORY: ${{ matrix.stack.working_directory }}
           STATE_KEY: ${{ matrix.stack.state_key }}
@@ -252,9 +197,7 @@ jobs:
           {
             echo "# Terraform Plan"
             echo
-            echo "- Scope: $STACK_SCOPE"
-            echo "- Stack type: $STACK_TYPE"
-            echo "- Stack name: $STACK_NAME"
+            echo "- Stack: services/$STACK_NAME"
             echo "- Working directory: $WORKING_DIRECTORY"
             echo "- State key: $STATE_KEY"
             echo "- Plan result: $PLAN_RESULT"
@@ -296,7 +239,7 @@ jobs:
           terraform_wrapper: false
 
       - name: Check Terraform formatting
-        run: terraform fmt -check -recursive
+        run: terraform fmt -check -recursive services
 
       - name: Initialize Terraform
         working-directory: ${{ matrix.stack.working_directory }}
@@ -312,7 +255,6 @@ jobs:
         run: terraform validate
 
       - name: Discover GitHub repository identity
-        if: matrix.stack.stack_type == 'services'
         env:
           GH_TOKEN: ${{ secrets.PLATFORM_GITHUB_TOKEN }}
           GITHUB_OWNER: ${{ github.repository_owner }}
@@ -344,74 +286,18 @@ jobs:
             echo "TF_VAR_github_oidc_provider_arn=$OIDC_PROVIDER_ARN"
           } >> "$GITHUB_ENV"
 
-      - name: Configure staging EKS admin credentials
-        id: eks-admin-credentials
-        if: matrix.stack.stack_id == 'staging/platform/argocd'
-        uses: aws-actions/configure-aws-credentials@v6
-        with:
-          role-to-assume: arn:aws:iam::980829302319:role/devex-staging-eks-admin
-          aws-region: ${{ vars.AWS_REGION }}
-          role-session-name: devex-staging-argocd-${{ github.run_id }}
-          output-env-credentials: false
-          output-credentials: true
-
-      - name: Create staging EKS admin profile
-        if: matrix.stack.stack_id == 'staging/platform/argocd'
-        env:
-          EKS_ADMIN_ACCESS_KEY_ID: ${{ steps.eks-admin-credentials.outputs.aws-access-key-id }}
-          EKS_ADMIN_SECRET_ACCESS_KEY: ${{ steps.eks-admin-credentials.outputs.aws-secret-access-key }}
-          EKS_ADMIN_SESSION_TOKEN: ${{ steps.eks-admin-credentials.outputs.aws-session-token }}
-        shell: bash
-        run: |
-          aws configure set aws_access_key_id "$EKS_ADMIN_ACCESS_KEY_ID" --profile eks-admin
-          aws configure set aws_secret_access_key "$EKS_ADMIN_SECRET_ACCESS_KEY" --profile eks-admin
-          aws configure set aws_session_token "$EKS_ADMIN_SESSION_TOKEN" --profile eks-admin
-          aws configure set region "$AWS_REGION" --profile eks-admin
-
-      - name: Adopt existing Argo CD release
-        if: matrix.stack.stack_id == 'staging/platform/argocd'
-        working-directory: ${{ matrix.stack.working_directory }}
-        shell: bash
-        run: |
-          if terraform state list | grep -Fxq 'helm_release.argocd'; then
-            echo "Argo CD is already present in Terraform state; skipping import."
-          else
-            terraform import helm_release.argocd argocd/argocd
-          fi
-
       - name: Plan Terraform changes
+        working-directory: ${{ matrix.stack.working_directory }}
         run: terraform plan -out=tfplan
-        working-directory: ${{ matrix.stack.working_directory }}
-
-      - name: Reject Argo CD replacement or recreation
-        if: matrix.stack.stack_id == 'staging/platform/argocd'
-        working-directory: ${{ matrix.stack.working_directory }}
-        shell: bash
-        run: |
-          terraform show -json tfplan |
-            jq -e '
-              [.resource_changes[] |
-                select(.address == "helm_release.argocd") |
-                .change.actions[]] |
-              any(. == "create" or . == "delete") |
-              not
-            '
 
       - name: Apply Terraform changes
         id: apply
         working-directory: ${{ matrix.stack.working_directory }}
         run: terraform apply -auto-approve tfplan
 
-      - name: Confirm Argo CD convergence
-        if: matrix.stack.stack_id == 'staging/platform/argocd'
-        working-directory: ${{ matrix.stack.working_directory }}
-        run: terraform plan -detailed-exitcode
-
       - name: Write apply summary
         if: always()
         env:
-          STACK_SCOPE: ${{ matrix.stack.stack_scope }}
-          STACK_TYPE: ${{ matrix.stack.stack_type }}
           STACK_NAME: ${{ matrix.stack.stack_name }}
           STATE_KEY: ${{ matrix.stack.state_key }}
           APPLY_RESULT: ${{ steps.apply.outcome }}
@@ -420,9 +306,7 @@ jobs:
           {
             echo "# Terraform Apply"
             echo
-            echo "- Scope: $STACK_SCOPE"
-            echo "- Stack type: $STACK_TYPE"
-            echo "- Stack name: $STACK_NAME"
+            echo "- Stack: services/$STACK_NAME"
             echo "- State key: $STATE_KEY"
             echo "- Apply result: $APPLY_RESULT"
           } >> "$GITHUB_STEP_SUMMARY"
