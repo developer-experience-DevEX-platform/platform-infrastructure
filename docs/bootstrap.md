@@ -13,7 +13,8 @@ GitHub Actions:
 
 It does not create service ECR repositories, Lambda functions, service
 release roles, Kubernetes resources, GitOps resources, or GitHub
-repository variables.
+repository variables. It also does not create a VPC or EKS; the
+practice cluster is Linode.
 
 This stack is **not** in the normal Terraform CI matrix. The first
 apply cannot use the S3 backend or OIDC role it creates.

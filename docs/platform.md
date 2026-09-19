@@ -13,38 +13,34 @@ done.
 
 CI/CD templates pin reusable workflows at `@main`. Terraform does not.
 
-All stacks in this repository should share one tag. Today that tag is
-`v0.3.0`. Bump every `?ref=` together after you cut a module release.
+All **applied** stacks in this repository should share one tag. Today
+that tag is `v0.3.0`. Bump every `?ref=` together after you cut a
+module release.
 
-Existing AWS resources must `moved`, not recreate. Do not delete a
-repository or role in order to point a stack at a new module path.
+A greenfield apply does not need `moved` blocks. Use them only when an
+object already exists in state and its address changed.
 
 ## Terraform CI
 
 Workflow: `.github/workflows/terraform.yml`
 
-Triggers on changes under `services/`, `environments/`, or the
-workflow file itself. Bootstrap is applied by an administrator; see
-[bootstrap](bootstrap.md).
+Triggers on changes under `services/` or the workflow file itself.
+It plans and applies **service stacks only** (ECR, release IAM, GitHub
+variables). Bootstrap is applied by an administrator. AWS networking,
+EKS, and Argo CD are never in the matrix; see
+[environments](environments.md).
 
 | Event | Role | What runs |
 | --- | --- | --- |
-| Pull request | `devex-terraform-plan` | `fmt`, `init`, `validate`, `plan` per affected stack |
+| Pull request | `devex-terraform-plan` | `fmt`, `init`, `validate`, `plan` per affected `services/<name>` |
 | Push to `main` | `devex-terraform-platform` | same, then `apply` |
 
-If only the workflow file changes, every service and environment stack
-is planned. Bootstrap is not in that matrix; see
-[bootstrap](bootstrap.md).
-
-Argo CD PRs Helm-lint instead of planning against the cluster. Details:
-[environments](environments.md).
-
-Unsupported environment directory names fail the detect job. Only
-`staging` and `production` are allowed under `environments/`.
+If only the workflow file changes, every directory under `services/`
+is planned.
 
 ## Providers
 
-Every stack configures providers. Service stacks need AWS and GitHub:
+Every service stack configures AWS and GitHub:
 
 ```hcl
 provider "aws" {
@@ -56,8 +52,7 @@ provider "github" {
 }
 ```
 
-`GITHUB_TOKEN` in CI is `PLATFORM_GITHUB_TOKEN`. Environment stacks
-that only call `aws/*` need AWS.
+`GITHUB_TOKEN` in CI is `PLATFORM_GITHUB_TOKEN`.
 
 Terraform in CI is `1.13.5`.
 
@@ -69,6 +64,11 @@ alone in OIDC `sub`.
 
 The account OIDC provider is bootstrap. Its ARN is
 `vars.AWS_GITHUB_OIDC_PROVIDER_ARN`.
+
+## Cluster
+
+The practice cluster is Linode. This pipeline does not create it and
+does not assume an EKS admin role.
 
 ## Related
 

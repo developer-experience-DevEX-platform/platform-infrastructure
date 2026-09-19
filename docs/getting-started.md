@@ -47,9 +47,10 @@ Terraform CI plans only the stacks you touched. A new directory under
 services/<service>/terraform.tfstate
 ```
 
-You are done when the plan creates (or moves) the ECR repository, the
+You are done when the plan creates the ECR repository, the
 `*-github-release` role, and the three GitHub Actions variables. Merge
 applies. A push to `main` in the service repo can then publish.
+Workloads run on the Linode cluster, not on AWS EKS.
 
 ## 3. Confirm release
 

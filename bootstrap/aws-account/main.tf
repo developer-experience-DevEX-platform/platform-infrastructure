@@ -11,26 +11,6 @@ module "terraform_state" {
   }
 }
 
-moved {
-  from = aws_s3_bucket.terraform_state
-  to   = module.terraform_state.aws_s3_bucket.this
-}
-
-moved {
-  from = aws_s3_bucket_versioning.terraform_state
-  to   = module.terraform_state.aws_s3_bucket_versioning.this
-}
-
-moved {
-  from = aws_s3_bucket_server_side_encryption_configuration.terraform_state
-  to   = module.terraform_state.aws_s3_bucket_server_side_encryption_configuration.this
-}
-
-moved {
-  from = aws_s3_bucket_public_access_block.terraform_state
-  to   = module.terraform_state.aws_s3_bucket_public_access_block.this
-}
-
 module "lambda_artifacts" {
   source = "git::https://github.com/developer-experience-DevEX-platform/terraform-modules.git//aws/s3?ref=v0.3.0"
 
@@ -38,31 +18,6 @@ module "lambda_artifacts" {
   tags = {
     Purpose = "LambdaArtifacts"
   }
-}
-
-moved {
-  from = aws_s3_bucket.lambda_artifacts
-  to   = module.lambda_artifacts.aws_s3_bucket.this
-}
-
-moved {
-  from = aws_s3_bucket_versioning.lambda_artifacts
-  to   = module.lambda_artifacts.aws_s3_bucket_versioning.this
-}
-
-moved {
-  from = aws_s3_bucket_server_side_encryption_configuration.lambda_artifacts
-  to   = module.lambda_artifacts.aws_s3_bucket_server_side_encryption_configuration.this
-}
-
-moved {
-  from = aws_s3_bucket_ownership_controls.lambda_artifacts
-  to   = module.lambda_artifacts.aws_s3_bucket_ownership_controls.this
-}
-
-moved {
-  from = aws_s3_bucket_public_access_block.lambda_artifacts
-  to   = module.lambda_artifacts.aws_s3_bucket_public_access_block.this
 }
 
 resource "aws_iam_openid_connect_provider" "github_actions" {
@@ -79,51 +34,6 @@ resource "aws_iam_openid_connect_provider" "github_actions" {
   }
 }
 
-data "aws_iam_policy_document" "terraform_assume_role" {
-  statement {
-    actions = ["sts:AssumeRoleWithWebIdentity"]
-
-    principals {
-      type        = "Federated"
-      identifiers = [aws_iam_openid_connect_provider.github_actions.arn]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:aud"
-      values   = ["sts.amazonaws.com"]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_owner}@${var.github_owner_id}/${var.github_repository}@${var.github_repository_id}:ref:refs/heads/${var.github_branch}"]
-    }
-  }
-}
-
-data "aws_iam_policy_document" "terraform_plan_assume_role" {
-  statement {
-    actions = ["sts:AssumeRoleWithWebIdentity"]
-
-    principals {
-      type        = "Federated"
-      identifiers = [aws_iam_openid_connect_provider.github_actions.arn]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:aud"
-      values   = ["sts.amazonaws.com"]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_owner}@${var.github_owner_id}/${var.github_repository}@${var.github_repository_id}:pull_request"]
-    }
-  }
-}
 
 resource "aws_iam_role" "terraform_platform" {
   name               = "devex-terraform-platform"
@@ -145,6 +55,18 @@ resource "aws_iam_role" "terraform_plan" {
     Platform  = "DevEx"
     Purpose   = "TerraformPlan"
   }
+}
+
+resource "aws_iam_role_policy" "terraform_plan" {
+  name   = "devex-terraform-plan"
+  role   = aws_iam_role.terraform_plan.id
+  policy = data.aws_iam_policy_document.terraform_plan.json
+}
+
+resource "aws_iam_role_policy" "terraform_platform" {
+  name   = "devex-terraform-platform"
+  role   = aws_iam_role.terraform_platform.id
+  policy = data.aws_iam_policy_document.terraform_platform.json
 }
 
 data "aws_iam_policy_document" "terraform_platform" {
@@ -505,12 +427,6 @@ data "aws_iam_policy_document" "terraform_platform" {
   }
 }
 
-resource "aws_iam_role_policy" "terraform_platform" {
-  name   = "devex-terraform-platform"
-  role   = aws_iam_role.terraform_platform.id
-  policy = data.aws_iam_policy_document.terraform_platform.json
-}
-
 data "aws_iam_policy_document" "terraform_plan" {
   statement {
     sid = "ReadEKSInfrastructure"
@@ -677,8 +593,48 @@ data "aws_iam_policy_document" "terraform_plan" {
   }
 }
 
-resource "aws_iam_role_policy" "terraform_plan" {
-  name   = "devex-terraform-plan"
-  role   = aws_iam_role.terraform_plan.id
-  policy = data.aws_iam_policy_document.terraform_plan.json
+data "aws_iam_policy_document" "terraform_assume_role" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.github_actions.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["repo:${var.github_owner}@${var.github_owner_id}/${var.github_repository}@${var.github_repository_id}:ref:refs/heads/${var.github_branch}"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "terraform_plan_assume_role" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.github_actions.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["repo:${var.github_owner}@${var.github_owner_id}/${var.github_repository}@${var.github_repository_id}:pull_request"]
+    }
+  }
 }
