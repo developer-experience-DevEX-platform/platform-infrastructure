@@ -52,7 +52,8 @@ and passes:
 - `TF_VAR_github_oidc_provider_arn`
 
 Pull requests assume `TERRAFORM_PLAN_ROLE_ARN`. Push to `main` assumes
-`TERRAFORM_APPLY_ROLE_ARN`.
+`TERRAFORM_APPLY_ROLE_ARN`. Networking, EKS, and Argo CD are not in
+this workflow. The cluster is Linode.
 
 ## Related
 
