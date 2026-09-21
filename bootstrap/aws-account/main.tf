@@ -20,6 +20,15 @@ module "lambda_artifacts" {
   }
 }
 
+module "techdocs" {
+  source = "git::https://github.com/developer-experience-DevEX-platform/terraform-modules.git//aws/s3?ref=v0.3.0"
+
+  name = "devex-techdocs-${data.aws_caller_identity.current.account_id}"
+  tags = {
+    Purpose = "TechDocs"
+  }
+}
+
 resource "aws_iam_openid_connect_provider" "github_actions" {
   url = "https://token.actions.githubusercontent.com"
 

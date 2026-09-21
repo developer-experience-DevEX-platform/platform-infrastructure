@@ -7,6 +7,7 @@ GitHub Actions:
 
 - Terraform state bucket (`aws/s3`)
 - Shared Lambda artifact bucket (`aws/s3`)
+- Shared TechDocs bucket (`aws/s3`)
 - Account-level GitHub Actions OIDC provider
 - `devex-terraform-plan` (read-only, pull requests)
 - `devex-terraform-platform` (apply on `main`)
@@ -55,6 +56,18 @@ come from `aws/s3`. Immutable keys:
 
 There is no `latest` object. `platform/service-lambda` grants each
 service access only to `<service-name>/*`.
+
+## TechDocs store
+
+Bucket name: `devex-techdocs-<account-id>`. Locked S3 defaults come
+from `aws/s3`. Generated sites use Backstage's key layout:
+
+```text
+default/component/<service-name>/
+```
+
+This stack only creates the bucket. Service write prefixes, the GitHub
+publish workflow, and the Backstage read role come in later slices.
 
 ## Remote state
 
