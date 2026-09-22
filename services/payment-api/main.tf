@@ -1,5 +1,5 @@
 module "container_release" {
-  source = "git::https://github.com/developer-experience-DevEX-platform/terraform-modules.git//platform/service-container-release?ref=v0.3.0"
+  source = "git::https://github.com/developer-experience-DevEX-platform/terraform-modules.git//platform/service-container-release?ref=v0.4.0"
 
   service_name             = var.service_name
   github_owner             = var.github_owner
