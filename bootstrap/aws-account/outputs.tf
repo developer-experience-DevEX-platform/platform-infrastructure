@@ -18,6 +18,16 @@ output "lambda_artifact_bucket_arn" {
   value       = module.lambda_artifacts.arn
 }
 
+output "techdocs_bucket_name" {
+  description = "Name of the shared S3 bucket for generated TechDocs sites."
+  value       = module.techdocs.id
+}
+
+output "techdocs_bucket_arn" {
+  description = "ARN of the shared S3 bucket for generated TechDocs sites."
+  value       = module.techdocs.arn
+}
+
 output "terraform_execution_role_name" {
   description = "Name of the company infrastructure Terraform execution role."
   value       = aws_iam_role.terraform_platform.name
