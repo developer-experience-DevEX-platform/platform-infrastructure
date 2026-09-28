@@ -1,5 +1,5 @@
 module "static_site_release" {
-  source = "git::https://github.com/developer-experience-DevEX-platform/terraform-modules.git//platform/static-site-release?ref=v0.6.0"
+  source = "git::https://github.com/developer-experience-DevEX-platform/terraform-modules.git//platform/static-site-release?ref=v0.7.0"
 
   service_name             = var.service_name
   github_owner             = var.github_owner
