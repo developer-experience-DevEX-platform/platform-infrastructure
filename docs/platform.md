@@ -24,16 +24,19 @@ object already exists in state and its address changed.
 
 Workflow: `.github/workflows/terraform.yml`
 
-Triggers on changes under `services/` or the workflow file itself.
-It plans and applies **service stacks only** (ECR, release IAM, GitHub
-variables). Bootstrap is applied by an administrator. AWS networking,
-EKS, and Argo CD are never in the matrix; see
-[environments](environments.md).
+Triggers on changes under `services/` or the workflow file itself, and
+on `workflow_dispatch` from `main` with a required `stack` input (the
+folder name under `services/`). Use dispatch when a merge to `main`
+does not start apply. It plans and applies **service stacks only**
+(ECR, release IAM, GitHub variables). Bootstrap is applied by an
+administrator. AWS networking, EKS, and Argo CD are never in the
+matrix; see [environments](environments.md).
 
 | Event | Role | What runs |
 | --- | --- | --- |
 | Pull request | `devex-terraform-plan` | `fmt`, `init`, `validate`, `plan` per affected `services/<name>` |
 | Push to `main` | `devex-terraform-platform` | same, then `apply` |
+| `workflow_dispatch` on `main` | `devex-terraform-platform` | `apply` for the named `stack` |
 
 If only the workflow file changes, every directory under `services/`
 is planned.
