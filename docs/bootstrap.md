@@ -107,12 +107,19 @@ repo:<owner>@<owner_id>/<repo>@<repo_id>:pull_request
 
 Audience is `sts.amazonaws.com`. No wildcard repositories or branches.
 
-The plan role can read ECR, IAM, OIDC, and state, and can manage S3
-`.tflock` objects. It cannot create or delete infrastructure.
+The plan role can read ECR, IAM, OIDC, CloudFront, static-site S3
+metadata, and state, and can manage S3 `.tflock` objects. It cannot
+create or delete infrastructure. `s3:ListAllMyBuckets` is required for
+`aws_canonical_user_id`. IAM names for public access block are
+`s3:GetBucketPublicAccessBlock` and `s3:PutBucketPublicAccessBlock`, not
+the API names. Static-site S3 reads include the optional bucket
+attributes the AWS provider refreshes after `CreateBucket` (CORS,
+website, lifecycle, replication, and similar).
 
-The apply role can manage ECR, `*-github-release` roles, the shared
-OIDC provider lookup, and state. It does not get `AdministratorAccess`
-and cannot delete state objects.
+The apply role can manage ECR, `*-github-release` roles, static-site
+S3 buckets, CloudFront, the shared OIDC provider lookup, and state. It
+does not get `AdministratorAccess` and cannot delete the state,
+TechDocs, or Lambda artifact buckets.
 
 ## First apply
 
