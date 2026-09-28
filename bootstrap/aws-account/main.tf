@@ -409,6 +409,105 @@ data "aws_iam_policy_document" "terraform_platform" {
   }
 
   statement {
+    sid = "ListAccountBuckets"
+    actions = [
+      "s3:GetBucketLocation",
+      "s3:ListAllMyBuckets",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "ReadStaticSiteBuckets"
+    actions = [
+      "s3:GetAccelerateConfiguration",
+      "s3:GetAnalyticsConfiguration",
+      "s3:GetBucketAcl",
+      "s3:GetBucketCORS",
+      "s3:GetBucketLogging",
+      "s3:GetBucketNotification",
+      "s3:GetBucketObjectLockConfiguration",
+      "s3:GetBucketOwnershipControls",
+      "s3:GetBucketPolicy",
+      "s3:GetBucketRequestPayment",
+      "s3:GetBucketTagging",
+      "s3:GetBucketVersioning",
+      "s3:GetBucketWebsite",
+      "s3:GetEncryptionConfiguration",
+      "s3:GetIntelligentTieringConfiguration",
+      "s3:GetInventoryConfiguration",
+      "s3:GetLifecycleConfiguration",
+      "s3:GetMetricsConfiguration",
+      "s3:GetBucketPublicAccessBlock",
+      "s3:GetReplicationConfiguration",
+      "s3:ListBucket",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "ManageStaticSiteBuckets"
+    actions = [
+      "s3:CreateBucket",
+      "s3:DeleteBucket",
+      "s3:DeleteBucketPolicy",
+      "s3:PutBucketAcl",
+      "s3:PutBucketLogging",
+      "s3:PutBucketOwnershipControls",
+      "s3:PutBucketPolicy",
+      "s3:PutBucketTagging",
+      "s3:PutBucketVersioning",
+      "s3:PutEncryptionConfiguration",
+      "s3:PutBucketPublicAccessBlock",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid    = "ProtectPlatformBuckets"
+    effect = "Deny"
+    actions = [
+      "s3:DeleteBucket",
+      "s3:DeleteBucketPolicy",
+    ]
+    resources = [
+      module.terraform_state.arn,
+      module.lambda_artifacts.arn,
+      module.techdocs.arn,
+    ]
+  }
+
+  statement {
+    sid = "ReadCloudFront"
+    actions = [
+      "cloudfront:GetCachePolicy",
+      "cloudfront:GetDistribution",
+      "cloudfront:GetDistributionConfig",
+      "cloudfront:GetOriginAccessControl",
+      "cloudfront:ListCachePolicies",
+      "cloudfront:ListDistributions",
+      "cloudfront:ListOriginAccessControls",
+      "cloudfront:ListTagsForResource",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "ManageCloudFront"
+    actions = [
+      "cloudfront:CreateDistribution",
+      "cloudfront:CreateOriginAccessControl",
+      "cloudfront:DeleteDistribution",
+      "cloudfront:DeleteOriginAccessControl",
+      "cloudfront:TagResource",
+      "cloudfront:UntagResource",
+      "cloudfront:UpdateDistribution",
+      "cloudfront:UpdateOriginAccessControl",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
     sid = "ListTerraformStateBucket"
     actions = [
       "s3:ListBucket",
@@ -573,6 +672,58 @@ data "aws_iam_policy_document" "terraform_plan" {
       "iam:GetOpenIDConnectProvider",
     ]
     resources = [aws_iam_openid_connect_provider.github_actions.arn]
+  }
+
+  statement {
+    sid = "ListAccountBuckets"
+    actions = [
+      "s3:GetBucketLocation",
+      "s3:ListAllMyBuckets",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "ReadStaticSiteBuckets"
+    actions = [
+      "s3:GetAccelerateConfiguration",
+      "s3:GetAnalyticsConfiguration",
+      "s3:GetBucketAcl",
+      "s3:GetBucketCORS",
+      "s3:GetBucketLogging",
+      "s3:GetBucketNotification",
+      "s3:GetBucketObjectLockConfiguration",
+      "s3:GetBucketOwnershipControls",
+      "s3:GetBucketPolicy",
+      "s3:GetBucketRequestPayment",
+      "s3:GetBucketTagging",
+      "s3:GetBucketVersioning",
+      "s3:GetBucketWebsite",
+      "s3:GetEncryptionConfiguration",
+      "s3:GetIntelligentTieringConfiguration",
+      "s3:GetInventoryConfiguration",
+      "s3:GetLifecycleConfiguration",
+      "s3:GetMetricsConfiguration",
+      "s3:GetBucketPublicAccessBlock",
+      "s3:GetReplicationConfiguration",
+      "s3:ListBucket",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "ReadCloudFront"
+    actions = [
+      "cloudfront:GetCachePolicy",
+      "cloudfront:GetDistribution",
+      "cloudfront:GetDistributionConfig",
+      "cloudfront:GetOriginAccessControl",
+      "cloudfront:ListCachePolicies",
+      "cloudfront:ListDistributions",
+      "cloudfront:ListOriginAccessControls",
+      "cloudfront:ListTagsForResource",
+    ]
+    resources = ["*"]
   }
 
   statement {
