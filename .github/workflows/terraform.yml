@@ -11,6 +11,12 @@ on:
     paths:
       - 'services/**'
       - '.github/workflows/terraform.yml'
+  workflow_dispatch:
+    inputs:
+      stack:
+        description: Service folder under services/ (for example marketing-frontend)
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -31,25 +37,43 @@ jobs:
       - name: Detect affected service stacks
         id: detect
         env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_STACK: ${{ github.event.inputs.stack }}
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         shell: bash
         run: |
-          mapfile -t changed_files < <(
-            git diff --no-renames --diff-filter=ACMRTUXB --name-only "$BASE_SHA" "$HEAD_SHA"
-          )
-
-          if printf '%s\n' "${changed_files[@]}" |
-            grep -Eq '^\.github/workflows/terraform\.yml$'; then
-            mapfile -t terraform_stacks < <(
-              find services -mindepth 1 -maxdepth 1 -type d | sort -u
-            )
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
+              echo "::error::Run workflow_dispatch on main. The apply role only trusts that branch."
+              exit 1
+            fi
+            if [[ ! "$DISPATCH_STACK" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
+              echo "::error::Invalid stack name. Use the folder name under services/."
+              exit 1
+            fi
+            if [[ ! -d "services/$DISPATCH_STACK" ]]; then
+              echo "::error::services/$DISPATCH_STACK does not exist."
+              exit 1
+            fi
+            terraform_stacks=("services/$DISPATCH_STACK")
           else
-            mapfile -t terraform_stacks < <(
-              printf '%s\n' "${changed_files[@]}" |
-              sed -nE 's#^(services/[^/]+)/.*#\1#p' |
-              sort -u
+            mapfile -t changed_files < <(
+              git diff --no-renames --diff-filter=ACMRTUXB --name-only "$BASE_SHA" "$HEAD_SHA"
             )
+
+            if printf '%s\n' "${changed_files[@]}" |
+              grep -Eq '^\.github/workflows/terraform\.yml$'; then
+              mapfile -t terraform_stacks < <(
+                find services -mindepth 1 -maxdepth 1 -type d | sort -u
+              )
+            else
+              mapfile -t terraform_stacks < <(
+                printf '%s\n' "${changed_files[@]}" |
+                sed -nE 's#^(services/[^/]+)/.*#\1#p' |
+                sort -u
+              )
+            fi
           fi
 
           if [[ ${#terraform_stacks[@]} -eq 0 ]]; then
@@ -205,7 +229,7 @@ jobs:
 
   terraform-apply:
     name: Terraform Apply (${{ matrix.stack.stack_id }})
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs: detect-stack
     runs-on: ubuntu-latest
     strategy:
